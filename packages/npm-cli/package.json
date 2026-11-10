@@ -21,5 +21,17 @@
     "type": "git",
     "url": "git+https://github.com/UkohEmmanuel1/Vonk.git",
     "directory": "packages/npm-cli"
+  },
+  "keywords": [
+    "ai",
+    "developer-tools",
+    "terminal",
+    "coding-assistant",
+    "llm",
+    "mcp"
+  ],
+  "homepage": "https://github.com/UkohEmmanuel1/Vonk#readme",
+  "bugs": {
+    "url": "https://github.com/UkohEmmanuel1/Vonk/issues"
   }
 }
