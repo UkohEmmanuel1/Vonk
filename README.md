@@ -134,6 +134,7 @@ GitHub Actions runs cross-platform CLI tests and package validation. Passing aut
 - [Terminal guide](docs/terminal.md) — user guide, providers, commands, skills, MCP, configuration.
 - [Security notes](docs/security.md) — credential storage, prompt/file handling, and MCP trust boundaries.
 - [Release guide](docs/releasing-cli.md) — build-only validation and the controlled npm/PyPI publishing process.
+- [Launch checklist](docs/launch-checklist.md) — maintainer sign-off and remaining release blockers.
 - [API guide](docs/api.md) — hosted API deployment and integration, separate from the CLI distributions.
 
 ## Project status
