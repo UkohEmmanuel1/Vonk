@@ -1,251 +1,145 @@
 # Vonk
 
-Run `vonk` or `vonk chat` for the full-screen green-and-amber developer workspace: model
-selection, provider connections, local/free-tier model options, skills, and
-on-demand stdio MCP tools. The workspace opens without an API key. Hosted paid
-models use your own provider key; local Ollama models require installed weights.
-Core chat is read-only; MCP tool calls are explicit user-authorized actions.
-See the [terminal guide](docs/terminal.md) and [registry release guide](docs/releasing-cli.md).
+**Your AI. Your Terminal. Your Workflow.**
 
-Type directly into the composer. `/` or Ctrl+P opens commands; F2 selects a model,
-F3 connects a provider, and Esc cancels a request. The terminal tab shows `Vonk · PROJECT`.
+Vonk is an open-source, multi-provider AI developer terminal. It provides an interactive workspace for chatting with supported AI providers, selecting models, attaching files for read-only review, enabling local skills, and invoking stdio MCP tools with explicit user authorization.
 
-## Install Vonk coding CLI (from source)
+Vonk is not currently an autonomous coding agent: core chat does not edit files or run shell commands. MCP tools are separate, explicitly authorized actions and are not sandboxed.
 
-Vonk is the name of the interactive coding assistant; the Vonk repository includes lightweight CLI clients for **pip** and **npm** users.
-They support choosing among AI providers, using your own API key, chatting, and
-attaching individual text files for read-only code review.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-20.3%2B-green.svg)](https://nodejs.org/)
+
+## Features
+
+- Full-screen terminal workspace with a command palette and persistent composer.
+- Multiple provider integrations, including DeepSeek, OpenAI-compatible services, Hugging Face, Google, Anthropic, and local Ollama.
+- Bring your own provider credentials; Vonk does not provide subsidized anonymous hosted inference.
+- Read-only review of explicitly attached UTF-8 text files.
+- Optional local skills that add instructions to model context; skills do not execute code.
+- Stdio Model Context Protocol (MCP) server support with explicit confirmation before launching servers or calling tools.
+- Python and Node.js CLI distributions that share the `vonk` command and user configuration.
+
+See the [terminal guide](docs/terminal.md) for supported providers, model setup, commands, file limits, credential handling, and MCP limitations.
+
+## Requirements
+
+- Python CLI: Python 3.10 or newer.
+- npm CLI: Node.js 20.3 or newer.
+- An API key for hosted providers, or a locally installed Ollama service and downloaded model weights for local inference.
+- A terminal that supports interactive input. Windows CMD, PowerShell, macOS, and Linux are supported; use `vonk chat --plain` where a full-screen terminal is unavailable.
+
+## Install
+
+### npm
+
+```bash
+npm install -g vonk
+vonk
+```
+
+### Python
+
+```bash
+python -m pip install vonk-ai-terminal
+vonk
+```
+
+**Registry publication is not complete yet.** Until the first public release is authorized and published, install from a local clone:
 
 Python:
 
 ```bash
-pip install "git+https://github.com/UkohEmmanuel1/Vonk.git#subdirectory=packages/python-cli"
-vonk models
+git clone https://github.com/UkohEmmanuel1/Vonk.git
+cd Vonk
+python -m pip install ./packages/python-cli
+vonk
+```
+
+npm:
+
+```bash
+git clone https://github.com/UkohEmmanuel1/Vonk.git
+cd Vonk
+npm install -g ./packages/npm-cli
+vonk
+```
+
+Both distributions expose a `vonk` executable. Install only one distribution in a given environment to avoid command-name conflicts.
+
+## First run
+
+Launch the interactive workspace:
+
+```bash
+vonk
+```
+
+Connect a hosted provider, then choose a model:
+
+```bash
 vonk login deepseek
 vonk use deepseek deepseek-chat
 vonk chat
 ```
 
-Node.js:
+For local inference, install [Ollama](https://ollama.com/), download a model, and select it in Vonk. For example:
 
 ```bash
-git clone https://github.com/UkohEmmanuel1/Vonk.git
-cd Vonk/packages/npm-cli
-npm install -g .
+ollama pull qwen2.5-coder:1.5b
+vonk
+```
+
+For Hugging Face Inference Providers, configure your own token and select a preset:
+
+```bash
+vonk login huggingface
+vonk use huggingface qwen
 vonk chat
 ```
 
-See [CLI documentation](docs/terminal.md). **These packages are not yet published
-to npm or PyPI.** This is a chat MVP, not yet an autonomous file-editing agent.
+Provider availability, model access, pricing, quotas, and licenses are controlled by the relevant provider and model publisher. An open-weight model does not automatically mean hosted inference is free or available offline.
 
-The CLI includes Hugging Face presets for **Qwen, DeepSeek, and MiMo**:
-`vonk login huggingface`, `vonk use huggingface qwen`, then `vonk chat`.
-Use `vonk models huggingface` to see the model IDs. **Big Pickle** is routed
-separately with `vonk use opencode big-pickle` and an OpenCode credential;
-OpenCode account/client restrictions apply. `vonk status` shows your selection.
+## Security and data handling
 
-## API deployment
+- Provider credentials are stored locally only when you use the login command. Saved credentials are plaintext in `~/.config/vonk/keys.json`; POSIX permissions are restricted, while Windows relies on the current account's directory permissions. Environment variables or an OS credential manager are preferable on shared devices.
+- Prompts and attached file contents are sent to the provider you select. Attach only content you are authorized to share.
+- Attached files are read-only inputs. Vonk does not modify their originals.
+- MCP servers execute with your operating-system user's permissions. Only configure trusted servers; Vonk does not sandbox their filesystem or network access.
+- Never commit API keys, credential files, or private configuration to source control.
 
-For the secured CPU GGUF API, use the root `render.yaml` and
-[Render deployment guide](docs/render.md). Vonk is API-only; the browser
-frontend has been removed. Authentication, hashed API credentials, and disabled
-crawling remain the defaults. Deployment needs a paid server and persistent disk.
-Start with the [public API guide](docs/api.md) for client integration and personal
-API keys. The root endpoint returns discovery JSON, `/openapi.json` describes the
-API, and `/ready` checks whether the service can accept traffic. The single CPU
-instance handles one generation at a time; production capacity must be measured
-before promising a user count or uptime target.
+Read the [security notes](docs/security.md) before using Vonk with sensitive projects.
 
-The capabilities below describe the broader research framework; they are not
-all available through the hosted API and are not a production certification.
-
-Vonk provides authenticated text chat and streaming with a quantized Qwen model. The repository also contains experimental training, model, and agent components.
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](#)
-
----
-
-## Research framework components
-
-| Capability | Status |
-|-----------|--------|
-| Thinking-native reasoning | ✅ Built-in thinking trace, controllable budget, Deep Think |
-| 1M+ token context | ✅ YaRN + NTK-aware scaling, sliding window, hierarchical memory |
-| Multimodal (vision) | ✅ ViT encoder + Q-Former projector |
-| Code execution sandbox | ✅ Secure subprocess, AST validation, import whitelist |
-| Advanced agents | ✅ Planner, orchestrator, ReAct, function calling, search grounding |
-| Structured output | ✅ JSON mode, schema-constrained generation |
-| MoE (Mixture of Experts) | ✅ Configurable, top-k routing, aux + z loss |
-| Distributed training | ✅ FSDP + DeepSpeed ZeRO-2/3 |
-| Fine-tuning | ✅ SFT, LoRA, QLoRA, DPO |
-
----
-
-## Getting Started & Usage
-
-### 1. Prerequisites & Installation
-
-Ensure you have **Python 3.10+** and **Git** installed on your machine or laptop.
+## Development and tests
 
 ```bash
-# Clone repository
-git clone https://github.com/UkohEmmanuel1/Vonk.git
-cd Vonk
-
-# Create and activate virtual environment
-python -m venv .venv
-
-# On Windows:
-.venv\Scripts\activate
-# On macOS / Linux:
-source .venv/bin/activate
-
-# Install dependencies
-pip install -e ".[all]"
-# (Or for lightweight inference only: pip install -e ".[inference]")
+python -m pip install -e ./packages/python-cli pytest
+python -m pytest tests/test_assistant_cli.py tests/test_providers.py tests/test_workspace.py tests/test_tui.py -q
+npm --prefix packages/npm-cli test
+npm pack ./packages/npm-cli --dry-run
 ```
 
----
-
-### 2. Running on Your Laptop / Local Machine
-
-Vonk can run on both CPU and CUDA-enabled GPUs. When running on a standard laptop without an NVIDIA GPU, add `--device cpu`.
-
-#### Option A: Interactive CLI Chat
-```bash
-# Standard chat (CPU)
-nexus --model checkpoints/model.pt --tokenizer tokenizer/tokenizer.model --device cpu
-
-# Thinking Mode (with reasoning trace enabled)
-nexus --model checkpoints/model.pt --tokenizer tokenizer/tokenizer.model --device cpu --thinking
-```
-*In chat mode: type your message and press Enter. Use `/clear` to reset context or `exit` to quit.*
-
----
-
-#### Option B: Authenticated API Server
-Start the local FastAPI server:
-```bash
-nexus --serve --device cpu --port 8000 --api-key sk-your-key
-```
-
-Query the chat endpoint using `curl`:
-```bash
-curl http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer sk-your-key" \
-  -d '{
-    "message": "Explain quantum computing in simple terms."
-  }'
-```
-
----
-
-#### Option C: Python SDK (Direct Code Integration)
-```python
-from src.inference.engine import InferenceEngine
-from src.model import ModelConfig, Transformer
-from src.tokenizer import Tokenizer
-import torch
-
-# Load configuration and model
-config = ModelConfig()
-model = Transformer(config)
-state = torch.load("checkpoints/model.pt", map_location="cpu", weights_only=True)
-model.load_state_dict(state.get("model_state_dict", state))
-
-tokenizer = Tokenizer("tokenizer/tokenizer.model")
-engine = InferenceEngine(model, tokenizer, device="cpu")
-
-# Stream generation
-for token in engine.generate("Write a quicksort function in Python:", stream=True):
-    print(token, end="", flush=True)
-```
-
----
-
-### 3. Training & Fine-Tuning
+Build and inspect the Python distribution:
 
 ```bash
-# Train tokenizer
-nexus-train --input data/corpus.txt --vocab-size 128000
-
-# Run evaluation benchmarks
-nexus-eval --model checkpoints/model.pt --benchmarks gsm8k,humaneval
+python -m pip install build twine
+python -m build --outdir dist/python ./packages/python-cli
+python -m twine check dist/python/*
 ```
 
----
+GitHub Actions runs cross-platform CLI tests and package validation. Passing automated tests does not guarantee that every third-party provider is currently available; live provider checks require valid credentials and may incur charges.
 
-## Model Sizes
+## Documentation
 
-| Model | Params | dim | layers | heads | kv_heads | MoE | Context |
-|-------|--------|-----|--------|-------|----------|-----|---------|
-| 1B | ~1B | 2048 | 16 | 16 | 8 | Optional | 4K–1M |
-| 3B | ~3B | 3200 | 26 | 32 | 8 | ✓ 8 experts | 4K–1M |
-| 7B | ~7B | 4096 | 32 | 32 | 8 | ✓ 8 experts | 4K–1M |
-| 13B | ~13B | 5120 | 40 | 40 | 8 | ✓ 8 experts | 4K–1M |
-| 32B | ~32B | 6656 | 60 | 52 | 8 | ✓ 16 experts | 4K–1M |
-| 70B | ~70B | 8192 | 80 | 64 | 8 | ✓ 16 experts | 4K–1M |
+- [Terminal guide](docs/terminal.md) — user guide, providers, commands, skills, MCP, configuration.
+- [Security notes](docs/security.md) — credential storage, prompt/file handling, and MCP trust boundaries.
+- [Release guide](docs/releasing-cli.md) — build-only validation and the controlled npm/PyPI publishing process.
+- [API guide](docs/api.md) — hosted API deployment and integration, separate from the CLI distributions.
 
----
+## Project status
 
-## Architecture
-
-```
-┌──────────────────────────────────────────────┐
-│              API Layer                        │
-│  CLI  │  FastAPI  │  Streaming  │  Batch      │
-└──────────────────┬───────────────────────────┘
-                   │
-┌──────────────────▼───────────────────────────┐
-│           Inference Engine                    │
-│  Generation  │  KV Cache  │  Thinking  │ RAG  │
-└──────────────────┬───────────────────────────┘
-                   │
-┌──────────────────▼───────────────────────────┐
-│           Model Core                          │
-│  Transformer  │  MoE  │  Attention  │  FFN   │
-│  RoPE  │  RMSNorm  │  SwiGLU  │  GQA         │
-└──────────────────┬───────────────────────────┘
-                   │
-┌──────────────────▼───────────────────────────┐
-│          Training Pipeline                    │
-│  Trainer  │  FSDP/DeepSpeed  │  Checkpoint    │
-│  SFT  │  LoRA  │  DPO  │  Reasoning          │
-└──────────────────┬───────────────────────────┘
-                   │
-┌──────────────────▼───────────────────────────┐
-│           Data Pipeline                       │
-│  Discover  │  Download  │  Clean  │  Tokenize │
-└──────────────────────────────────────────────┘
-```
-
----
-
-## Documentation Map
-
-| Document | Audience | What It Covers |
-|----------|----------|---------------|
-| [Architecture](docs/architecture.md) | Engineers | System design, module map, data flows |
-| [Model Design](docs/model.md) | Researchers | Architecture details, configs, components |
-| [Context Extension](docs/context_extension.md) | Researchers | YaRN theory, 1M token recipe, sliding window |
-| [Thinking Mode](docs/thinking_mode.md) | Developers | Thinking tokens, budget, Deep Think algorithm |
-| [Multimodal](docs/multimodal.md) | Practitioners | Vision encoder, image processing, inference |
-| [Code Execution](docs/code_execution.md) | Developers | Sandbox, security, allowed imports, API |
-| [Agents](docs/agents.md) | AI Engineers | Planner, orchestrator, tools, search grounding, web crawler |
-| [Structured Output](docs/structured_output.md) | API Users | JSON mode, schema constraint, retry logic |
-| [Training Guide](docs/training.md) | ML Engineers | Pretraining, FSDP, DeepSpeed, multi-node |
-| [Fine-tuning Guide](docs/finetuning.md) | Practitioners | SFT, LoRA, QLoRA, DPO, thinking-aware SFT |
-| [Inference Guide](docs/inference.md) | Developers | CLI, API, streaming, quantization, web crawl endpoints |
-| [Deployment](docs/deployment.md) | DevOps | Docker, K8s, scaling, monitoring, API keys |
-| [Data Pipeline](docs/data_pipeline.md) | Engineers | Dataset discovery, download, tokenization |
-| [Evaluation](docs/evaluation.md) | Researchers | Benchmarks, metrics, long-context evaluation |
-| [Contributing](docs/contributing.md) | Contributors | Setup, PR workflow, code standards |
-
----
+Vonk's CLI is a public source-code project undergoing preparation for its first npm and PyPI registry release. Registry publication is deliberately gated and will not happen until the maintainer authorizes it. Some research-framework and model-training components in this repository are experimental and are not implied to be part of the supported CLI product.
 
 ## License
 
-MIT
+Vonk is distributed under the MIT License. See [LICENSE](LICENSE).
