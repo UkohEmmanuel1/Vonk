@@ -12,7 +12,7 @@ async function session(t, complete = async () => "Hello") {
     const api = {
         VERSION: "test", config: join(directory, "config.json"),
         keysPath: join(directory, "keys.json"), load, save, endpoints, examples, hfModels,
-        credential: async p => [p === "vonk" ? "managed" : null],
+        credential: async () => [null],
         complete, systemPrompt: "Coding assistant",
     };
     const ui = new TerminalSession(api, directory);
@@ -30,6 +30,8 @@ test("fullscreen command palette selects a model and sends with conversation con
     await ui.keypress("\r", { name: "return" });
     assert.equal(ui.state.provider, "vonk");
     assert.equal((await load(ui.api.config)).model, "opencode");
+    ui.key = "managed";
+    ui.state.connected = true;
     ui.state.draft = "Hello";
     await ui.send();
     ui.state.draft = "Again";
@@ -67,6 +69,8 @@ test("Esc cancels an in-flight request without adding a response to history", as
         ready();
     }));
     await ui.select("vonk", examples.vonk);
+    ui.key = "managed";
+    ui.state.connected = true;
     ui.state.draft = "hello";
     const request = ui.send();
     await started;

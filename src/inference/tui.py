@@ -419,7 +419,9 @@ class Workspace:
             self.notice = "Prompt exceeds 16,000 characters. Shorten it before sending."
             return
         if not self.key:
-            self.notice = "Connect a provider with /connect, or choose a hosted free-tier model with /free."
+            self.notice = (
+                "Connect a provider with /connect, or choose a hosted free-tier model with /free."
+            )
             self.modal = None
             return
         self.composer.text = ""

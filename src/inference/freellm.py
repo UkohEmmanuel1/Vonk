@@ -255,7 +255,9 @@ async def stream(
     items = await list_models()
     candidates = _candidate_models(items, model)
     timeout = httpx.Timeout(120.0, connect=10.0, write=15.0, pool=10.0)
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=False, trust_env=False) as client:
+    async with httpx.AsyncClient(
+        timeout=timeout, follow_redirects=False, trust_env=False
+    ) as client:
         for index, candidate in enumerate(candidates):
             emitted = False
             try:

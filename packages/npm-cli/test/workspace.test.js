@@ -49,16 +49,7 @@ test("first launch and vonk chat show a workspace instead of rejecting missing k
 });
 test("Vonk managed selection persists and routes to the managed gateway", async (t) => {
     const directory = await isolated(t);
-    const result = spawnSync(
-        process.execPath,
-        [fileURLToPath(new URL("../bin/nexus-ai.js", import.meta.url)), "ui"],
-        {
-            encoding: "utf8",
-            env: { ...process.env, VONK_CONFIG_DIR: directory },
-            input: "4\\n1\\n0\\n",
-        },
-    );
-    assert.equal(result.status, 0, result.stderr);
+    assert.equal(await main(["use", "vonk", "opencode"]), 0);
     assert.equal(
         JSON.parse(await readFile(join(directory, "config.json"))).provider,
         "vonk",
