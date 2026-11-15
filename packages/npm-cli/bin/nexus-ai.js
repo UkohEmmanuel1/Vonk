@@ -233,9 +233,9 @@ export async function complete(
 ) {
     model = resolveModel(provider, model);
     if (provider === "vonk") {
-        if (typeof key !== "string" || !/^[\\x21-\\x7e]{1,512}$/.test(key))
+        if (typeof key !== "string" || key.length < 1 || key.length > 512 || [...key].some((char) => char.charCodeAt(0) < 33 || char.charCodeAt(0) > 126))
             throw new CLIError("Set VONK_API_KEY and VONK_BASE_URL to use the managed Vonk gateway");
-        const base = (process.env.VONK_BASE_URL || "").replace(/\\/$/, "");
+        const base = (process.env.VONK_BASE_URL || "").replace(/\/+$/, "");
         let parsed;
         try { parsed = new URL(base); } catch { throw new CLIError("Invalid VONK_BASE_URL"); }
         if (!["https:", "http:"].includes(parsed.protocol) ||
@@ -414,7 +414,7 @@ export async function main(argv = process.argv.slice(2), dependencies = {}) {
                 : Object.keys(endpoints)) {
                 console.log(provider + ":");
                 if (provider === "vonk") {
-                    const base = (process.env.VONK_BASE_URL || "").replace(/\\/$/, "");
+                    const base = (process.env.VONK_BASE_URL || "").replace(/\/+$/, "");
                     const key = process.env.VONK_API_KEY;
                     if (!base || !key) console.log("  Configure VONK_BASE_URL and VONK_API_KEY");
                     else {

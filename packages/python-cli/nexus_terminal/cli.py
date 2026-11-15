@@ -263,7 +263,7 @@ def run(argv=None):
 
     context = "\n".join(filter(None, [file_context(args.file), skill_context(config.parent)]))
     if provider == "vonk" and not key:
-        raise CLIError("Set VONK_API_KEY and VONK_BASE_URL to use the managed Vonk gateway")
+        raise CLIError("No key for Vonk. Set VONK_API_KEY and VONK_BASE_URL to use the managed gateway")
     if not key and not args.prompt and not args.plain:
         return dashboard(sys.modules[__name__])
     if not key:
