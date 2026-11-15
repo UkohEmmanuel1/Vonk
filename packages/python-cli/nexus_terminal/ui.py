@@ -75,13 +75,13 @@ def free_models(api, config):
         ],
     )
     if selected == 0:
-        api.save(config, {"provider": "ollama", "model": "qwen2.5-coder:1.5b"})
+        api.save(config, {"provider": "vonk", "model": "opencode"})
         panel(
-            "LOCAL OLLAMA SELECTED",
+            "VONK MANAGED GATEWAY",
             [
-                "Install Ollama from https://ollama.com if needed.",
-                "Run: ollama pull qwen2.5-coder:1.5b",
-                "Keep Ollama running, then choose Start chat. Download/hardware are required.",
+                "Set VONK_BASE_URL to your Vonk API URL.",
+                "Set VONK_API_KEY to your Vonk API key.",
+                "OpenCode is selected by default; Vonk handles model fallback.",
             ],
         )
     elif selected == 1:

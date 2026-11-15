@@ -3,6 +3,11 @@ import asyncio
 import httpx
 import pytest
 
+
+@pytest.fixture(autouse=True)
+def isolated_health_db(tmp_path, monkeypatch):
+    monkeypatch.setenv("NEXUS_PROVIDER_HEALTH_DB", str(tmp_path / "provider-health.sqlite3"))
+
 from src.inference.freellm import FreeLLMError, complete, list_models
 
 
@@ -92,3 +97,56 @@ def test_insecure_remote_gateway_url_is_rejected(monkeypatch):
     monkeypatch.setenv("FREELLM_API_KEY", "test-key")
     with pytest.raises(FreeLLMError):
         asyncio.run(list_models())
+
+
+
+def test_circuit_breaker_opens_after_repeated_provider_failures(tmp_path, monkeypatch):
+    from src.inference import provider_health
+
+    monkeypatch.setenv("NEXUS_PROVIDER_HEALTH_DB", str(tmp_path / "health.sqlite3"))
+    for _ in range(3):
+        provider_health.record_failure("provider::model", "rate_limit")
+    assert provider_health.is_available("provider::model") is False
+    snapshot = provider_health.snapshot()
+    assert snapshot[0]["circuit"] == "open"
+
+
+def test_circuit_breaker_resets_after_success(tmp_path, monkeypatch):
+    from src.inference import provider_health
+
+    monkeypatch.setenv("NEXUS_PROVIDER_HEALTH_DB", str(tmp_path / "health.sqlite3"))
+    for _ in range(3):
+        provider_health.record_failure("provider::model", "upstream")
+    provider_health.record_success("provider::model")
+    assert provider_health.is_available("provider::model") is True
+    assert provider_health.snapshot()[0]["consecutive_failures"] == 0
+
+
+def test_streaming_forwards_sse_and_uses_gateway_stream_flag(monkeypatch):
+    monkeypatch.setenv("FREELLM_BASE_URL", "https://gateway.example/v1")
+    monkeypatch.setenv("FREELLM_API_KEY", "test-key")
+
+    def handler(request):
+        if request.url.path == "/v1/models":
+            return httpx.Response(200, json={"data": [
+                {"id": "opencode::stream-model", "provider": "opencode"}
+            ]})
+        assert request.url.path == "/v1/chat/completions"
+        import json
+        assert json.loads(request.content)["stream"] is True
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/event-stream"},
+            text='data: {"choices":[{"delta":{"content":"hello"}}]}\\n\\ndata: [DONE]\\n\\n',
+        )
+
+    _mock_client(monkeypatch, handler)
+
+    async def collect():
+        return [chunk async for chunk in stream(
+            model="opencode", messages=[{"role": "user", "content": "hello"}]
+        )]
+
+    from src.inference.freellm import stream
+    chunks = asyncio.run(collect())
+    assert any("hello" in chunk for chunk in chunks)
