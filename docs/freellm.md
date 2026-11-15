@@ -58,3 +58,22 @@ used for BYOK requests.
   for each model-list or inference request rather than treating example model
   IDs as permanent.
 - Streaming is not yet exposed on the managed FreeLLM route.
+
+
+## Streaming and provider health
+
+Set `NEXUS_PROVIDER_HEALTH_DB` to a SQLite file on a persistent mounted disk
+to retain circuit-breaker state across process restarts. The default is
+`vonk_provider_health.sqlite3` in the service working directory; ephemeral
+container filesystems do not provide durable persistence.
+
+A model circuit opens after three consecutive timeout, network, rate-limit, or
+upstream failures and cools down for 60 seconds. A successful completion closes
+the circuit. If all eligible circuits are open, the preferred model is allowed
+one probe. The authenticated `GET /v1/provider-health` endpoint exposes
+sanitised model-level state.
+
+Set `stream: true` on `POST /v1/chat/completions` to receive server-sent
+events. Fallback is possible before the first stream frame. Once output has
+started, Vonk will not silently switch models and duplicate partial output; an
+interrupted stream terminates with an SSE error event.

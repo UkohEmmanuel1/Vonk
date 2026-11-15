@@ -1,9 +1,10 @@
 # Vonk
 
 Run `vonk` or `vonk chat` for the full-screen green-and-amber developer workspace: model
-selection, provider connections, local/free-tier model options, skills, and
-on-demand stdio MCP tools. The workspace opens without an API key. Hosted paid
-models use your own provider key; local Ollama models require installed weights.
+selection, Vonk-managed inference, direct provider connections (BYOK), skills,
+and on-demand stdio MCP tools. The default route uses Vonk's OpenCode-first
+FreeLLM gateway; configure VONK_BASE_URL and VONK_API_KEY. Direct providers
+continue to use your own provider keys.
 Core chat is read-only; MCP tool calls are explicit user-authorized actions.
 See the [terminal guide](docs/terminal.md) and [registry release guide](docs/releasing-cli.md).
 
@@ -21,9 +22,9 @@ Python:
 ```bash
 pip install "git+https://github.com/UkohEmmanuel1/Vonk.git#subdirectory=packages/python-cli"
 vonk models
-vonk login deepseek
-vonk use deepseek deepseek-chat
 vonk chat
+# Configure VONK_BASE_URL and VONK_API_KEY for the managed gateway
+# Or connect a direct provider with BYOK: vonk login deepseek
 ```
 
 Node.js:

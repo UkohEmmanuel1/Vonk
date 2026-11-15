@@ -1,7 +1,7 @@
 # Vonk
 
-Interactive developer terminal: model selection, provider connection, free local
-models, paid models with your own key, skills, and stdio MCP tools.
+Interactive developer terminal: model selection, Vonk-managed inference, direct
+provider connections (BYOK), skills, and stdio MCP tools.
 
 The interactive UI fills the terminal with a green-and-amber theme, Vonk
 wordmark, conversation history, and persistent composer. Type a prompt directly.
@@ -13,10 +13,11 @@ After publication: `npm install -g vonk`, then run `vonk` or `vonk chat`.
 For the current source candidate, clone the repository and run
 `npm install -g ./packages/npm-cli`. Node.js 20.3+ is required.
 
-The workspace opens without a key. Free local models use Ollama, installed
-weights and your own hardware. Hosted free tiers require their own account/quota.
-Hosted premium models use your provider key. Hugging Face includes Qwen,
-DeepSeek, and MiMo; Big Pickle uses OpenCode with its access restrictions.
+The CLI defaults to Vonk's managed inference gateway. Configure
+`VONK_BASE_URL` and `VONK_API_KEY`; OpenCode models are preferred and Vonk
+automatically falls back to other eligible FreeLLM catalogue models. Direct
+provider connections remain available through BYOK. Provider quotas and access
+restrictions still apply.
 
 ```text
 vonk connect

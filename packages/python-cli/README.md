@@ -11,11 +11,11 @@ Python installation: `pip install vonk-ai-terminal` after registry publication.
 For the current source release, clone the repository and run
 `python -m pip install ./packages/python-cli`.
 
-Use Free models for local Ollama (no provider key or API bill) or OpenRouter's
-account-based free tier. Local models need Ollama, downloaded weights and your
-own hardware. Hosted premium models use your own provider key; fees and quotas
-are controlled by that provider. Hugging Face includes Qwen, DeepSeek and MiMo.
-Big Pickle uses OpenCode and is subject to its client/account restrictions.
+The default CLI route uses Vonk's managed inference gateway, with OpenCode as
+the preferred model and automatic fallback to other eligible FreeLLM catalogue
+models. Configure `VONK_BASE_URL` and `VONK_API_KEY`. You can still connect
+direct provider accounts for BYOK; provider access, quotas and pricing are set
+by each provider. Ollama/local model hosting is not part of Vonk.
 
 Commands:
 

@@ -16,7 +16,7 @@ are entered in a hidden field. `vonk connect` opens provider setup directly.
 | Ctrl+P or `/` | Command palette |
 | F2 or `/models` | Select model |
 | F3 or `/connect` | Connect provider |
-| `/free` | Choose local or hosted free-tier options |
+| `/free` | Choose Vonk-managed inference or an eligible hosted free-tier provider |
 | `/skills` | List skills and toggle them with Enter |
 | `/mcp` | View connections and MCP command instructions |
 | `/new` | Clear conversation |
@@ -29,11 +29,12 @@ The UI does not automatically start MCP programs. Windows CMD, PowerShell, and
 modern ANSI terminals are supported. Piped input retains the basic menu without
 full-screen control sequences; `vonk chat --plain` explicitly selects plain chat.
 
-Free local chat uses Ollama at `127.0.0.1:11434`, without a provider key or API
-bill. Install Ollama and run `ollama pull qwen2.5-coder:1.5b`, then choose the
-local model in Vonk. Hardware and model downloads are required. The OpenRouter
-free router is another option, with the user's own free-tier key and quotas.
-Vonk does not promise anonymous free hosted inference.
+The default model route uses the Vonk-managed API gateway. Configure
+`VONK_BASE_URL` (the deployed Vonk API base URL) and `VONK_API_KEY` (a Vonk
+API key). Vonk prefers available OpenCode models from its configured FreeLLM
+gateway and can fall back to other eligible catalogue models. Direct BYOK
+provider connections remain available. Provider quotas, access restrictions,
+and availability apply; Vonk does not promise unlimited free inference.
 
 ```bash
 vonk skills add ./SKILL.md --name review
@@ -125,6 +126,14 @@ Full model IDs are also accepted. One request can override the saved selection:
 vonk chat --provider huggingface --model mimo --max-tokens 2048 "Review this approach"
 ```
 
+## Managed OpenCode-first inference through Vonk
+
+The Python and npm CLIs default to the Vonk gateway and model alias `opencode`.
+The gateway discovers model IDs dynamically; use `vonk models vonk` to list
+the current catalogue. Set `VONK_BASE_URL` and `VONK_API_KEY` before use.
+Streaming is supported by the managed API; CLI chat currently uses
+non-streaming completions.
+
 ## Big Pickle through OpenCode
 
 Big Pickle is an OpenCode model ID, not a verified Hugging Face open-weight
@@ -160,7 +169,7 @@ handle EOF; Ctrl+C cancels with exit code 130. Successful one-shot chat exits 0,
 request failures exit 1, and configuration/usage failures exit 2. Conversations
 are bounded; the oldest turns are removed as the history limit is approached.
 
-Environment variables override saved keys: `HUGGINGFACE_API_KEY` or `HF_TOKEN`
+For the managed gateway, set `VONK_BASE_URL` and `VONK_API_KEY`. Environment variables override saved keys: `HUGGINGFACE_API_KEY` or `HF_TOKEN`
 for Hugging Face, `OPENCODE_API_KEY` for OpenCode, and `PROVIDER_API_KEY` for other
 providers (for example `DEEPSEEK_API_KEY`). Login requires an interactive terminal
 and hides key entry in both implementations. Scripts should use environment
