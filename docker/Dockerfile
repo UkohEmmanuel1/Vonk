@@ -16,7 +16,7 @@ RUN mkdir -p /var/data && chown nexus:nexus /var/data
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 \
     NEXUS_MODEL_BACKEND=gguf \
     NEXUS_KEYS_DB=/var/data/nexus_keys.db HF_HOME=/var/data/huggingface \
-    NEXUS_WEB_INDEX_DB=/var/data/nexus_web_index.db NEXUS_ENABLE_CRAWLER=0 \\
+    NEXUS_WEB_INDEX_DB=/var/data/nexus_web_index.db NEXUS_ENABLE_CRAWLER=0 \
     NEXUS_PROVIDER_HEALTH_DB=/var/data/vonk_provider_health.sqlite3
 USER nexus
 EXPOSE 8000
