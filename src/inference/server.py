@@ -391,7 +391,7 @@ def create_app(
                     payload = json.dumps(
                         {"error": {"message": exc.detail, "type": "upstream_error"}}
                     )
-                    yield f"event: error\\ndata: {payload}\\n\\n"
+                    yield f"event: error\ndata: {payload}\n\n"
 
             return StreamingResponse(
                 events(),

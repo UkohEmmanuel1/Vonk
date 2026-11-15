@@ -274,19 +274,24 @@ async def stream(
                         if response.status_code in _RETRYABLE and index + 1 < len(candidates):
                             continue
                         raise FreeLLMError(503, "FreeLLM could not start a streaming response")
-                    provider_health.record_success(candidate)
-                    emitted = False
-                    async for line in response.aiter_lines():
-                        if not line:
+                    async for chunk in response.aiter_text():
+                        if not chunk:
                             continue
                         emitted = True
-                        yield line + "\n\n"
+                        yield chunk
                     if not emitted:
                         provider_health.record_failure(candidate, "upstream")
+                        if index + 1 < len(candidates):
+                            continue
                         raise FreeLLMError(502, "FreeLLM returned an empty stream")
+                    provider_health.record_success(candidate)
                     return
             except (httpx.TimeoutException, httpx.RequestError):
                 provider_health.record_failure(candidate, "timeout")
+                if emitted:
+                    raise FreeLLMError(
+                        502, "FreeLLM stream interrupted after output began"
+                    ) from None
                 if index + 1 < len(candidates):
                     continue
                 raise FreeLLMError(502, "FreeLLM streaming gateway is unreachable") from None
