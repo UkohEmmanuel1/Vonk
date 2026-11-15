@@ -34,7 +34,7 @@ def model_picker(api, config):
     entries = []
     for provider, models in api.EXAMPLE_MODELS.items():
         for model in models:
-            note = "local, no API bill" if provider == "ollama" else "your API key"
+            note = "your Vonk-managed gateway" if provider == "vonk" else "your API key"
             if provider == "openrouter" and model == "openrouter/free":
                 note = "free tier; account/quota required"
             entries.append((provider, model, f"{provider} / {model} [{note}]"))
@@ -49,12 +49,12 @@ def connect_provider(api, config, keys):
     providers = list(api.PROVIDERS)
     chosen = pick(
         "CONNECT A PROVIDER",
-        [p + (" - local, no key" if p == "ollama" else " - enter your API key") for p in providers],
+        [p + (" - Vonk managed gateway" if p == "vonk" else " - enter your API key") for p in providers],
     )
     if chosen is None:
         return
     provider = providers[chosen]
-    if provider != "ollama":
+    if provider != "vonk":
         if not sys.stdin.isatty():
             print(
                 "  Run 'vonk login PROVIDER' in an interactive terminal, or set its key variable."
@@ -70,18 +70,18 @@ def free_models(api, config):
     selected = pick(
         "FREE MODEL OPTIONS",
         [
-            "Local Ollama - no provider API key or per-token bill; runs on your computer",
+            "Vonk managed inference - OpenCode default with automatic fallback",
             "OpenRouter free router - own free-tier API key and rate limits apply",
         ],
     )
     if selected == 0:
-        api.save(config, {"provider": "ollama", "model": "qwen2.5-coder:1.5b"})
+        api.save(config, {"provider": "vonk", "model": "opencode"})
         panel(
-            "LOCAL OLLAMA SELECTED",
+            "VONK MANAGED GATEWAY",
             [
-                "Install Ollama from https://ollama.com if needed.",
-                "Run: ollama pull qwen2.5-coder:1.5b",
-                "Keep Ollama running, then choose Start chat. Download/hardware are required.",
+                "Set VONK_BASE_URL to your Vonk API URL.",
+                "Set VONK_API_KEY to your Vonk API key.",
+                "OpenCode is the default; Vonk handles fallback.",
             ],
         )
     elif selected == 1:
@@ -154,7 +154,7 @@ def dashboard(api, connect=False):
     while True:
         try:
             settings = api.load(config)
-            provider = settings.get("provider", "deepseek")
+            provider = settings.get("provider", "opencode")
             model = settings.get("model", api.EXAMPLE_MODELS.get(provider, ["not selected"])[0])
             key, source = (
                 api.credential(provider, keys)
@@ -209,7 +209,7 @@ def dashboard(api, connect=False):
                 panel(
                     "WORKSPACE HELP",
                     [
-                        "Connect uses your own provider key. Free local models use Ollama.",
+                        "Connect uses your own provider key or Vonk managed inference.",
                         "Skills add instructions to chat; they do not execute code.",
                         "MCP runs trusted local server programs after confirmation.",
                         "Chat is read-only: attach files for review; no automatic source edits.",

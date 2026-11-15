@@ -101,7 +101,7 @@ export class TerminalSession {
         this.messages = [];
         this.state = {
             version: api.VERSION, project: basename(process.cwd()),
-            provider: "deepseek", model: "deepseek-chat", connected: false,
+            provider: "vonk", model: "opencode", connected: false,
             draft: "", cursor: 0, mode: null, index: 0, options: [], scroll: 0,
             notice: "Type a message to begin. / opens commands.", busy: false, home: true,
             transcript: "\nVonk\n\nYour project. Your models. Your flow.\n\n"
@@ -113,7 +113,7 @@ export class TerminalSession {
     }
     async refresh() {
         const settings = await this.api.load(this.api.config);
-        const p = settings.provider || "deepseek";
+        const p = settings.provider || "vonk";
         if (!Object.hasOwn(this.api.endpoints, p)) throw Error("Unsupported provider. Run vonk use PROVIDER MODEL.");
         this.state.provider = p;
         this.state.model = settings.model || this.api.examples[p];
@@ -148,10 +148,10 @@ export class TerminalSession {
                     entries.push([[p, m], `${p.padEnd(13)} ${m}`]);
             this.palette("models", entries);
         } else if (cmd === "/connect")
-            this.palette("connect", Object.keys(this.api.endpoints).map(p => [p, p + (p === "ollama" ? " · local, no key" : " · your API key")]));
+            this.palette("connect", Object.keys(this.api.endpoints).map(p => [p, p + (p === "vonk" ? " · managed gateway" : " · your API key")]));
         else if (cmd === "/free")
             this.palette("free", [
-                [["ollama", "qwen2.5-coder:1.5b"], "Ollama · local / no API bill"],
+                [["vonk", "opencode"], "Vonk · OpenCode-first managed inference"],
                 [["openrouter", "openrouter/free"], "OpenRouter · free tier / own key"],
             ]);
         else if (["/new", "/clear"].includes(cmd)) {
@@ -181,9 +181,9 @@ export class TerminalSession {
         if (mode === "commands") await this.command(value);
         else if (mode === "models" || mode === "free") {
             await this.select(...value);
-            if (mode === "free") this.append("Free models", "Local: install Ollama and run `ollama pull qwen2.5-coder:1.5b`. Keep Ollama running. OpenRouter requires your own free-tier key and quotas.");
+            if (mode === "free") this.append("Free models", "Vonk managed inference uses OpenCode-first FreeLLM routing. Configure VONK_BASE_URL and VONK_API_KEY. OpenRouter requires your own key.");
         } else if (mode === "connect") {
-            if (value === "ollama") await this.select(value, this.api.examples[value]);
+            if (value === "vonk") await this.select(value, this.api.examples[value]);
             else {
                 this.loginProvider = value;
                 this.palette("key", []);

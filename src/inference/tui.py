@@ -289,7 +289,7 @@ class Workspace:
         elif mode == "models":
             self.select(*value)
         elif mode == "connect":
-            if value == "ollama":
+            if value == "vonk":
                 self.select(value, self.api.EXAMPLE_MODELS[value][0])
             else:
                 self.task = self.app.create_background_task(self.login(value))
@@ -297,8 +297,8 @@ class Workspace:
             self.select(*value)
             self.append(
                 "Free models",
-                "Local: install Ollama and run `ollama pull qwen2.5-coder:1.5b`. "
-                "Keep Ollama running. OpenRouter requires your own free-tier key and quotas.",
+                "Vonk managed inference uses the OpenCode-first FreeLLM route. "
+                "Configure VONK_BASE_URL and VONK_API_KEY. OpenRouter requires your own key.",
             )
         elif mode == "skills":
             self.store.toggle_skill(value[0], not value[1])
@@ -354,7 +354,7 @@ class Workspace:
             self.show(
                 "connect",
                 [
-                    (p, p + (" · local, no key" if p == "ollama" else " · your API key"))
+                    (p, p + (" · managed gateway" if p == "vonk" else " · your API key"))
                     for p in self.api.PROVIDERS
                 ],
             )
@@ -362,7 +362,7 @@ class Workspace:
             self.show(
                 "free",
                 [
-                    (("ollama", "qwen2.5-coder:1.5b"), "Ollama · local / no API bill"),
+                    (("vonk", "opencode"), "Vonk · OpenCode-first managed inference"),
                     (("openrouter", "openrouter/free"), "OpenRouter · free tier / own key"),
                 ],
             )
