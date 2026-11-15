@@ -36,7 +36,14 @@ def test_fullscreen_select_managed_or_hosted_model_send_and_exit(tui, monkeypatc
             return {"response": "Hello\x1b]52;c;secret\x07 world"}
 
         complete = AsyncMock(side_effect=answer)
-        monkeypatch.setattr(api, "complete_byok", complete)
+        if api.__name__ == "nexus_terminal.cli":
+            async def managed_answer(**kwargs):
+                started.set()
+                return "Hello\\x1b]52;c;secret\\x07 world"
+            complete = AsyncMock(side_effect=managed_answer)
+            monkeypatch.setattr(api, "complete_vonk", complete)
+        else:
+            monkeypatch.setattr(api, "complete_byok", complete)
         with create_pipe_input() as pipe:
             ui = module.Workspace(api, input=pipe, output=DummyOutput())
             ui.app.pre_run_callables.append(lambda: pipe.send_text("/free\r\rhello\r"))
@@ -69,6 +76,8 @@ def test_fullscreen_keeps_unconnected_prompt_and_supports_cancellation(tui, monk
     api, module = tui
 
     async def exercise():
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+        monkeypatch.delenv("VONK_API_KEY", raising=False)
         with create_pipe_input() as pipe:
             ui = module.Workspace(api, input=pipe, output=DummyOutput())
             ui.composer.text = "keep my prompt"
