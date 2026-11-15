@@ -45,3 +45,17 @@ the Render Blueprint is the supported deployment path for this release.
 For managed FreeLLM inference, also configure `FREELLM_BASE_URL` and
 `FREELLM_API_KEY`. See [FreeLLM integration](freellm.md). These credentials
 belong only in the API service environment.
+
+
+## Managed FreeLLM gateway
+
+For OpenCode-first managed inference, configure `FREELLM_BASE_URL` (the
+OpenAI-compatible gateway base URL including `/v1`) and `FREELLM_API_KEY`
+in the service environment. Set `FREELLM_MAX_MODEL_ATTEMPTS` to a value from
+1 to 8 to bound model fallback attempts.
+
+The production container and Render Blueprint store provider circuit-breaker
+state at `/var/data/vonk_provider_health.sqlite3`. Render mounts `/var/data`
+on its persistent disk, so circuit state survives process restarts and deploys.
+For Docker Compose, the named `nexus-data` volume is mounted at the same path.
+Never commit the FreeLLM gateway key.
