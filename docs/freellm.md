@@ -57,7 +57,6 @@ used for BYOK requests.
 - Catalogue and provider availability can change. Vonk fetches the catalogue
   for each model-list or inference request rather than treating example model
   IDs as permanent.
-- Streaming is not yet exposed on the managed FreeLLM route.
 
 
 ## Streaming and provider health

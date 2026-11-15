@@ -70,3 +70,53 @@ def test_request_ids_are_unique_and_credentials_are_not_logged(production_client
     assert first.headers["X-Request-ID"] in caplog.text
     assert "query-secret" not in caplog.text
     assert "private-prompt" not in caplog.text
+
+
+
+def test_managed_freellm_routes_are_authenticated_and_support_streaming(
+    production_client, monkeypatch
+):
+    from src.inference.server import FreeLLMError
+
+    async def models():
+        return [{"id": "opencode::sample", "provider": "opencode"}]
+
+    async def completion(**kwargs):
+        return {
+            "choices": [{"message": {"role": "assistant", "content": "managed"}}],
+            "model": "opencode::sample",
+        }
+
+    async def streaming(**kwargs):
+        yield 'data: {"choices":[{"delta":{"content":"managed"}}]}\\n\\n'
+
+    monkeypatch.setattr("src.inference.server.list_freellm_models", models)
+    monkeypatch.setattr("src.inference.server.complete_freellm", completion)
+    monkeypatch.setattr("src.inference.server.stream_freellm", streaming)
+    monkeypatch.setenv("NEXUS_PROVIDER_HEALTH_DB", ":memory:")
+
+    headers = {"X-API-Key": "client"}
+    assert production_client.get("/v1/models").status_code == 401
+    catalogue = production_client.get("/v1/models", headers=headers)
+    assert catalogue.status_code == 200
+    assert catalogue.json()["data"][0]["id"] == "opencode::sample"
+
+    response = production_client.post(
+        "/v1/chat/completions",
+        headers=headers,
+        json={"messages": [{"role": "user", "content": "hello"}]},
+    )
+    assert response.status_code == 200
+    assert response.json()["choices"][0]["message"]["content"] == "managed"
+
+    streamed = production_client.post(
+        "/v1/chat/completions",
+        headers=headers,
+        json={"messages": [{"role": "user", "content": "hello"}], "stream": True},
+    )
+    assert streamed.status_code == 200
+    assert "text/event-stream" in streamed.headers["content-type"]
+    assert "managed" in streamed.text
+
+    health = production_client.get("/v1/provider-health", headers=headers)
+    assert health.status_code == 200
