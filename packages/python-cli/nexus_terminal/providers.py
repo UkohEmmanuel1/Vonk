@@ -209,7 +209,9 @@ def _vonk_configuration() -> tuple[str, str]:
 async def list_vonk_models() -> list[str]:
     base_url, api_key = _vonk_configuration()
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(15, connect=5), trust_env=False) as client:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(15, connect=5), trust_env=False
+        ) as client:
             response = await client.get(
                 f"{base_url}/v1/models", headers={"Authorization": f"Bearer {api_key}"}
             )
@@ -220,7 +222,11 @@ async def list_vonk_models() -> list[str]:
     try:
         data = response.json()
         models = data["data"]
-        return [item["id"] for item in models if isinstance(item, dict) and isinstance(item.get("id"), str)]
+        return [
+            item["id"]
+            for item in models
+            if isinstance(item, dict) and isinstance(item.get("id"), str)
+        ]
     except (ValueError, KeyError, TypeError):
         raise ProviderError(502, "Vonk returned an invalid model catalogue") from None
 
@@ -230,7 +236,9 @@ async def complete_vonk(
 ) -> str:
     base_url, api_key = _vonk_configuration()
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(120, connect=10), trust_env=False) as client:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(120, connect=10), trust_env=False
+        ) as client:
             response = await client.post(
                 f"{base_url}/v1/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}"},

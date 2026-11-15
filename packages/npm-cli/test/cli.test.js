@@ -24,6 +24,8 @@ async function isolated(t) {
     for (const provider of Object.keys(endpoints))
         delete process.env[provider.toUpperCase() + "_API_KEY"];
     delete process.env.HF_TOKEN;
+    delete process.env.VONK_API_KEY;
+    delete process.env.VONK_BASE_URL;
     const output = [],
         errors = [];
     t.mock.method(console, "log", (...args) => output.push(args.join(" ")));
@@ -357,4 +359,40 @@ test("piped interactive chat preserves turns and clears history", async (t) => {
     assert.equal(result.status, 0, result.stderr);
     assert.equal((result.stdout.match(/history:2/g) || []).length, 2);
     assert.equal((result.stdout.match(/history:4/g) || []).length, 1);
+});
+
+
+
+test("npm CLI uses the Vonk managed gateway for its OpenCode default", async (t) => {
+    await isolated(t);
+    process.env.VONK_API_KEY = "synthetic_vonk_key";
+    process.env.VONK_BASE_URL = "https://vonk.example";
+    let captured;
+    const answer = await complete(
+        "vonk",
+        "opencode",
+        [{ role: "user", content: "hello" }],
+        process.env.VONK_API_KEY,
+        128,
+        0.7,
+        async (url, options) => {
+            captured = { url, ...options };
+            return new Response(JSON.stringify({
+                choices: [{ message: { content: "managed response" } }],
+            }));
+        },
+    );
+    assert.equal(answer, "managed response");
+    assert.equal(captured.url, "https://vonk.example/v1/chat/completions");
+    assert.equal(JSON.parse(captured.body).model, "opencode");
+    assert.equal(captured.headers.Authorization, "Bearer synthetic_vonk_key");
+    assert.equal(captured.redirect, "error");
+});
+
+
+test("npm CLI defaults to Vonk in status without exposing its key", async (t) => {
+    const { output } = await isolated(t);
+    assert.equal(await main(["status"]), 0);
+    assert.ok(output.join("\\n").includes("Provider: vonk"));
+    assert.ok(output.join("\\n").includes("Model: opencode"));
 });

@@ -34,7 +34,7 @@ jobs:
         run: pip install fastapi==0.141.1 uvicorn==0.46.0 pydantic==2.13.3 httpx==0.28.1
 
       - name: Lint production serving code
-        run: ruff check src/inference/server.py src/inference/security.py src/inference/gguf.py src/inference/assistant_cli.py src/inference/ui.py src/inference/tui.py src/inference/workspace.py src/inference/providers.py src/utils/key_manager.py packages/python-cli/nexus_terminal tests/test_production_api.py tests/test_assistant_cli.py tests/test_providers.py tests/test_workspace.py tests/test_tui.py
+        run: ruff check src/inference/server.py src/inference/security.py src/inference/gguf.py src/inference/assistant_cli.py src/inference/ui.py src/inference/tui.py src/inference/workspace.py src/inference/providers.py src/utils/key_manager.py packages/python-cli/nexus_terminal src/inference/freellm.py src/inference/provider_health.py tests/test_freellm.py tests/test_production_api.py tests/test_assistant_cli.py tests/test_providers.py tests/test_workspace.py tests/test_tui.py
 
       - name: Run tests
         run: make test

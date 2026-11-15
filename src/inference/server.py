@@ -389,7 +389,9 @@ def create_app(
                         yield event
                     yield "data: [DONE]\\n\\n"
                 except FreeLLMError as exc:
-                    payload = json.dumps({"error": {"message": exc.detail, "type": "upstream_error"}})
+                    payload = json.dumps(
+                        {"error": {"message": exc.detail, "type": "upstream_error"}}
+                    )
                     yield f"event: error\\ndata: {payload}\\n\\n"
 
             return StreamingResponse(

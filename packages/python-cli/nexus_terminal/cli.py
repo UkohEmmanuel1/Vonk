@@ -10,7 +10,15 @@ import re
 import sys
 import tempfile
 
-from .providers import (EXAMPLE_MODELS, HUGGINGFACE_MODELS, PROVIDERS, complete_byok, complete_vonk, list_vonk_models, resolve_model)
+from .providers import (
+    EXAMPLE_MODELS,
+    HUGGINGFACE_MODELS,
+    PROVIDERS,
+    complete_byok,
+    complete_vonk,
+    list_vonk_models,
+    resolve_model,
+)
 
 VERSION = "0.4.0"
 DEFAULT = {"provider": "vonk", "model": "opencode"}
@@ -66,7 +74,8 @@ def save(path, data, secret=False):
 
 def credential(provider, keys_path):
     if provider == "vonk":
-        return os.environ.get("VONK_API_KEY"), "VONK_API_KEY" if os.environ.get("VONK_API_KEY") else "not configured"
+        key = os.environ.get("VONK_API_KEY")
+        return key, "VONK_API_KEY" if key else "not configured"
     names = [f"{provider.upper()}_API_KEY"]
     if provider == "huggingface":
         names.append("HF_TOKEN")
@@ -121,7 +130,14 @@ def file_context(files):
 
 def request_chat(provider, model, messages, key, max_tokens=1024, temperature=0.7):
     if provider == "vonk":
-        return asyncio.run(complete_vonk(model=model, messages=messages, max_tokens=max_tokens, temperature=temperature))
+        return asyncio.run(
+            complete_vonk(
+                model=model,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+        )
     result = asyncio.run(
         complete_byok(
             provider=provider,
@@ -212,7 +228,8 @@ def run(argv=None):
                 try:
                     print("  " + ", ".join(asyncio.run(list_vonk_models())))
                 except Exception as exc:
-                    raise CLIError(getattr(exc, "detail", "Cannot load Vonk model catalogue")) from None
+                    detail = getattr(exc, "detail", "Cannot load Vonk model catalogue")
+                    raise CLIError(detail) from None
                 continue
             if provider == "huggingface":
                 for alias, model in HUGGINGFACE_MODELS.items():
@@ -263,7 +280,9 @@ def run(argv=None):
 
     context = "\n".join(filter(None, [file_context(args.file), skill_context(config.parent)]))
     if provider == "vonk" and not key:
-        raise CLIError("No key for Vonk. Set VONK_API_KEY and VONK_BASE_URL to use the managed gateway")
+        raise CLIError(
+            "No key for Vonk. Set VONK_API_KEY and VONK_BASE_URL to use the managed gateway"
+        )
     if not key and not args.prompt and not args.plain:
         return dashboard(sys.modules[__name__])
     if not key:
