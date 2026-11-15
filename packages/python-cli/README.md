@@ -15,7 +15,7 @@ The default CLI route uses Vonk's managed inference gateway, with OpenCode as
 the preferred model and automatic fallback to other eligible FreeLLM catalogue
 models. Configure `VONK_BASE_URL` and `VONK_API_KEY`. You can still connect
 direct provider accounts for BYOK; provider access, quotas and pricing are set
-by each provider. Ollama/local model hosting is not part of Vonk.
+by each provider. Local model hosting is not part of Vonk.
 
 Commands:
 

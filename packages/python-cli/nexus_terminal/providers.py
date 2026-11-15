@@ -90,8 +90,6 @@ async def complete_byok(
 ) -> dict:
     if not isinstance(provider, str) or provider not in PROVIDERS:
         raise ProviderError(400, "Unsupported provider")
-    if provider == "ollama":
-        provider_key = "ollama-local"
     if (
         not isinstance(provider_key, str)
         or not 1 <= len(provider_key) <= 512
