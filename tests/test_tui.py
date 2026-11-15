@@ -18,17 +18,17 @@ def tui(request, monkeypatch, tmp_path):
     for p in api.PROVIDERS:
         monkeypatch.delenv(f"{p.upper()}_API_KEY", raising=False)
     monkeypatch.delenv("HF_TOKEN", raising=False)
-    if base == "src.inference":
-        monkeypatch.setenv("OPENROUTER_API_KEY", "synthetic_key")
-    else:
-        monkeypatch.setenv("VONK_API_KEY", "synthetic_key")
-        monkeypatch.setenv("VONK_BASE_URL", "https://vonk.example")
     return api, module
 
 
 def test_fullscreen_select_managed_or_hosted_model_send_and_exit(tui, monkeypatch):
     api, module = tui
     async def exercise():
+        if api.__name__ == "src.inference.assistant_cli":
+            monkeypatch.setenv("OPENROUTER_API_KEY", "synthetic_key")
+        else:
+            monkeypatch.setenv("VONK_API_KEY", "synthetic_key")
+            monkeypatch.setenv("VONK_BASE_URL", "https://vonk.example")
         started = asyncio.Event()
 
         async def answer(**kwargs):
@@ -80,6 +80,11 @@ def test_fullscreen_keeps_unconnected_prompt_and_supports_cancellation(tui, monk
                 if api.__name__ == "src.inference.assistant_cli"
                 else ("vonk", "opencode")
             )
+            if provider == "openrouter":
+                monkeypatch.setenv("OPENROUTER_API_KEY", "synthetic_key")
+            else:
+                monkeypatch.setenv("VONK_API_KEY", "synthetic_key")
+                monkeypatch.setenv("VONK_BASE_URL", "https://vonk.example")
             ui.select(provider, model)
             started = asyncio.Event()
 
