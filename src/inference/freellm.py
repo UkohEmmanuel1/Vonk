@@ -1,7 +1,6 @@
 """FreeLLM-compatible OpenAI gateway with OpenCode-first routing and SSE streaming."""
 from __future__ import annotations
 
-import json
 import os
 from collections.abc import AsyncIterator
 from urllib.parse import urlsplit
@@ -113,7 +112,9 @@ def _primary_model(items: list[dict], requested: str) -> str:
     opencode = [item["id"] for item in items if _is_opencode(item, item["id"])]
     if requested in {"", "auto", "opencode", "default"}:
         if not opencode:
-            raise FreeLLMError(503, "No available OpenCode model was found in the FreeLLM catalogue")
+            raise FreeLLMError(
+                503, "No available OpenCode model was found in the FreeLLM catalogue"
+            )
         return opencode[0]
     if requested not in available:
         raise FreeLLMError(404, "Requested model is not present in the FreeLLM catalogue")
@@ -191,7 +192,9 @@ async def complete(
     candidates = _candidate_models(items, model)
     timeout = httpx.Timeout(90.0, connect=10.0, write=15.0, pool=10.0)
     last_status = 502
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=False, trust_env=False) as client:
+    async with httpx.AsyncClient(
+        timeout=timeout, follow_redirects=False, trust_env=False
+    ) as client:
         for index, candidate in enumerate(candidates):
             try:
                 response = await client.post(
@@ -219,7 +222,11 @@ async def complete(
                 raise FreeLLMError(400, "FreeLLM rejected the model or conversation")
             try:
                 data = response.json()
-                if not isinstance(data, dict) or not isinstance(data.get("choices"), list) or not data["choices"]:
+                if (
+                    not isinstance(data, dict)
+                    or not isinstance(data.get("choices"), list)
+                    or not data["choices"]
+                ):
                     raise ValueError
                 data["model"] = candidate
                 data["vonk"] = {
@@ -261,7 +268,9 @@ async def stream(
                     if response.status_code in (401, 403):
                         raise FreeLLMError(502, "FreeLLM rejected the configured gateway key")
                     if response.status_code >= 400 or 300 <= response.status_code < 400:
-                        provider_health.record_failure(candidate, _failure_kind(response.status_code))
+                        provider_health.record_failure(
+                            candidate, _failure_kind(response.status_code)
+                        )
                         if response.status_code in _RETRYABLE and index + 1 < len(candidates):
                             continue
                         raise FreeLLMError(503, "FreeLLM could not start a streaming response")
