@@ -21,6 +21,7 @@ from starlette.background import BackgroundTask
 from src.agents.crawl_scheduler import CrawlScheduler
 from src.agents.web_crawler import CrawlTask, WebCrawler
 from src.inference.providers import EXAMPLE_MODELS, PROVIDERS, ProviderError, complete_byok
+from src.inference.freellm import FreeLLMError, complete as complete_freellm, list_models as list_freellm_models
 from src.inference.security import WindowLimiter
 
 if TYPE_CHECKING:
@@ -131,6 +132,10 @@ def create_app(
     credential_limiter = WindowLimiter(rate_limit)
     authentication_limiter = WindowLimiter(300)
 
+    @app.exception_handler(FreeLLMError)
+    async def freellm_error(request: Request, exc: FreeLLMError):
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
     @app.exception_handler(ProviderError)
     async def provider_error(request: Request, exc: ProviderError):
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
@@ -227,6 +232,12 @@ def create_app(
     class ProviderChatRequest(BaseModel):
         provider: str = Field(min_length=1, max_length=40)
         model: str = Field(min_length=1, max_length=200)
+        messages: list[ProviderMessage] = Field(min_length=1, max_length=30)
+        max_tokens: int = Field(default=512, ge=1, le=2048)
+        temperature: float = Field(default=0.7, ge=0, le=2)
+
+    class ManagedChatRequest(BaseModel):
+        model: str = Field(default="opencode", min_length=1, max_length=300)
         messages: list[ProviderMessage] = Field(min_length=1, max_length=30)
         max_tokens: int = Field(default=512, ge=1, le=2048)
         temperature: float = Field(default=0.7, ge=0, le=2)
@@ -338,6 +349,28 @@ def create_app(
             model=req.model,
             messages=[message.model_dump() for message in req.messages],
             provider_key=provider_key,
+            max_tokens=req.max_tokens,
+            temperature=req.temperature,
+        )
+
+    @app.get("/v1/models")
+    async def managed_models():
+        models = await list_freellm_models()
+        return {
+            "object": "list",
+            "data": [
+                {"id": item["id"], "object": "model",
+                 "owned_by": item.get("provider") or item.get("owned_by") or "freellm"}
+                for item in models
+            ],
+            "default_model": "opencode",
+        }
+
+    @app.post("/v1/chat/completions")
+    async def managed_chat(req: ManagedChatRequest):
+        return await complete_freellm(
+            model=req.model,
+            messages=[message.model_dump() for message in req.messages],
             max_tokens=req.max_tokens,
             temperature=req.temperature,
         )
