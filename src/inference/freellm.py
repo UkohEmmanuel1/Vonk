@@ -114,7 +114,14 @@ def _candidate_models(items: list[dict], requested: str) -> list[str]:
     # entries are eligible fallbacks in the order supplied by FreeLLM.
     ordered = [primary]
     ordered.extend(model for model in opencode + available if model != primary)
-    return list(dict.fromkeys(ordered))
+    unique = list(dict.fromkeys(ordered))
+    try:
+        max_attempts = int(os.environ.get("FREELLM_MAX_MODEL_ATTEMPTS", "4"))
+    except ValueError:
+        max_attempts = 4
+    # A bounded chain prevents a large catalogue from multiplying request latency.
+    max_attempts = max(1, min(max_attempts, 8))
+    return unique[:max_attempts]
 
 
 async def complete(
