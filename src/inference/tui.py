@@ -175,7 +175,7 @@ class Workspace:
             "Vonk",
             "Your project. Your models. Your flow.\n\n"
             "Write a prompt below, or open /models and /connect.\n"
-            "Free local chat: /free. Skills: /skills. Connections: /mcp.",
+            "Hosted free-tier options: /free. Skills: /skills. Connections: /mcp.",
         )
         self.home = True
 

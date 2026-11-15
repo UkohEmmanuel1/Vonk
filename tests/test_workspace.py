@@ -41,14 +41,18 @@ def test_workspace_opens_without_a_key_and_stays_open_after_chat_selected(
     assert "No key for deepseek" not in output
 
 
-def test_workspace_selects_a_free_local_model_without_key(workspace, monkeypatch):
+def test_workspace_selects_the_managed_or_hosted_free_model(workspace, monkeypatch):
     cli, _, _ = workspace
     answers = iter(["4", "1", "0"])
     monkeypatch.setattr("builtins.input", lambda _: next(answers))
     assert cli.main(["ui"]) == 0
     settings = cli.load(cli.config_paths()[0])
-    assert settings == {"provider": "ollama", "model": "qwen2.5-coder:1.5b"}
-    assert cli.credential("ollama", cli.config_paths()[1])[1] == "local / no API key"
+    expected = (
+        {"provider": "openrouter", "model": "openrouter/free"}
+        if cli.__name__ == "src.inference.assistant_cli"
+        else {"provider": "vonk", "model": "opencode"}
+    )
+    assert settings == expected
 
 
 def test_skills_are_used_only_when_enabled(workspace, monkeypatch):

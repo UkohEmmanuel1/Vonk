@@ -18,10 +18,15 @@ def tui(request, monkeypatch, tmp_path):
     for p in api.PROVIDERS:
         monkeypatch.delenv(f"{p.upper()}_API_KEY", raising=False)
     monkeypatch.delenv("HF_TOKEN", raising=False)
+    if base == "src.inference":
+        monkeypatch.setenv("OPENROUTER_API_KEY", "synthetic_key")
+    else:
+        monkeypatch.setenv("VONK_API_KEY", "synthetic_key")
+        monkeypatch.setenv("VONK_BASE_URL", "https://vonk.example")
     return api, module
 
 
-def test_fullscreen_select_local_model_send_and_exit(tui, monkeypatch):
+def test_fullscreen_select_managed_or_hosted_model_send_and_exit(tui, monkeypatch):
     api, module = tui
     async def exercise():
         started = asyncio.Event()
@@ -44,12 +49,18 @@ def test_fullscreen_select_local_model_send_and_exit(tui, monkeypatch):
             driver_task = asyncio.create_task(driver())
             assert await asyncio.wait_for(ui.app.run_async(), 4) == 0
             await driver_task
-            assert ui.provider == "ollama"
+            expected_provider = (
+                "openrouter" if api.__name__ == "src.inference.assistant_cli" else "vonk"
+            )
+            assert ui.provider == expected_provider
             assert "Hello world" in ui.transcript
             assert "secret" not in ui.transcript
             assert not ui.busy
-            assert complete.call_args.kwargs["provider"] == "ollama"
             assert complete.call_args.kwargs["messages"][-1]["content"] == "hello"
+            if expected_provider == "openrouter":
+                assert complete.call_args.kwargs["provider"] == "openrouter"
+            else:
+                assert complete.call_args.kwargs["model"] == "opencode"
 
     asyncio.run(exercise())
 
@@ -64,14 +75,22 @@ def test_fullscreen_keeps_unconnected_prompt_and_supports_cancellation(tui, monk
             ui.send()
             assert ui.composer.text == "keep my prompt"
             assert "/connect" in ui.notice
-            ui.select("ollama", "qwen2.5-coder:1.5b")
+            provider, model = (
+                ("openrouter", "openrouter/free")
+                if api.__name__ == "src.inference.assistant_cli"
+                else ("vonk", "opencode")
+            )
+            ui.select(provider, model)
             started = asyncio.Event()
 
             async def waiting(**kwargs):
                 started.set()
                 await asyncio.Event().wait()
 
-            monkeypatch.setattr(api, "complete_byok", waiting)
+            if provider == "vonk":
+                monkeypatch.setattr(api, "complete_vonk", waiting)
+            else:
+                monkeypatch.setattr(api, "complete_byok", waiting)
 
             async def driver():
                 await started.wait()

@@ -175,7 +175,7 @@ class Workspace:
             "Vonk",
             "Your project. Your models. Your flow.\n\n"
             "Write a prompt below, or open /models and /connect.\n"
-            "Free local chat: /free. Skills: /skills. Connections: /mcp.",
+            "Hosted model options: /free. Skills: /skills. Connections: /mcp.",
         )
         self.home = True
 
@@ -439,15 +439,23 @@ class Workspace:
             turns = self.messages + [{"role": "user", "content": prompt}]
             while len(turns) > 99 or sum(len(m["content"]) for m in turns) > 120000:
                 del turns[1:3]
-            result = await self.api.complete_byok(
-                provider=self.provider,
-                model=self.model,
-                messages=turns,
-                provider_key=self.key,
-                max_tokens=2048,
-                temperature=0.7,
-            )
-            answer = result["response"]
+            if self.provider == "vonk":
+                answer = await self.api.complete_vonk(
+                    model=self.model,
+                    messages=turns,
+                    max_tokens=2048,
+                    temperature=0.7,
+                )
+            else:
+                result = await self.api.complete_byok(
+                    provider=self.provider,
+                    model=self.model,
+                    messages=turns,
+                    provider_key=self.key,
+                    max_tokens=2048,
+                    temperature=0.7,
+                )
+                answer = result["response"]
             self.messages = turns + [{"role": "assistant", "content": answer}]
             self.append("Vonk", answer)
             self.notice = "Ready. /new starts fresh."
