@@ -33,6 +33,15 @@ response and template overhead. Requests outside the context budget return 422.
 `data: {"token":"..."}` followed by `data: [DONE]`. Stream errors contain an
 `error` field. `POST /generate` accepts `prompt` in place of `message`.
 
+## Managed FreeLLM inference
+
+Configure `FREELLM_BASE_URL` and `FREELLM_API_KEY` on the server. The
+managed endpoints `GET /v1/models` and `POST /v1/chat/completions` expose
+the live FreeLLM model catalogue and OpenCode-first inference with fallback.
+See [FreeLLM integration](freellm.md) for configuration and routing behaviour.
+These endpoints use Vonk's normal user API authentication. They do not expose
+the upstream FreeLLM credential.
+
 ## Personal keys (operators only)
 
 Call `POST /v1/keys/generate` with `{"name":"customer-name"}` and the admin

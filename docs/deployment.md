@@ -20,6 +20,9 @@ one non-root Docker container. Docker Compose is also available under `docker/`.
 | `/v1/keys/generate` | POST | Admin key |
 | `/v1/keys` | GET | Admin key; returns identifiers, never raw keys |
 | `/v1/keys/revoke` | POST | Admin key; accepts a key identifier in `key` |
+| `/v1/models` | GET | API key; live FreeLLM catalogue |
+| `/v1/chat/completions` | POST | API key; managed FreeLLM inference |
+| `/v1/chat/byok` | POST | API key + caller's `X-Provider-Key` |
 | `/crawl`, `/crawl/stream`, `/crawl/schedule` | POST | Admin key; disabled by default |
 | `/crawl/status`, `/crawl/data` | GET | Admin key; disabled by default |
 
@@ -37,3 +40,8 @@ embedding, agent execution, or code execution endpoints. The Python research
 framework has additional components that are not exposed by this deployment.
 The legacy Kubernetes templates need separate cluster provisioning and secrets;
 the Render Blueprint is the supported deployment path for this release.
+
+
+For managed FreeLLM inference, also configure `FREELLM_BASE_URL` and
+`FREELLM_API_KEY`. See [FreeLLM integration](freellm.md). These credentials
+belong only in the API service environment.
