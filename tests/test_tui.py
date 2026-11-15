@@ -1,4 +1,4 @@
-"""Drive the real full-screen input loop without network or a physical terminal."""
+"""Exercise both terminal workspaces without a network or physical terminal."""
 
 import asyncio
 import importlib
@@ -12,88 +12,96 @@ from prompt_toolkit.output import DummyOutput
 @pytest.fixture(params=["src.inference", "nexus_terminal"])
 def tui(request, monkeypatch, tmp_path):
     base = request.param
-    api = importlib.import_module(base + (".assistant_cli" if base == "src.inference" else ".cli"))
+    api = importlib.import_module(
+        base + (".assistant_cli" if base == "src.inference" else ".cli")
+    )
     module = importlib.import_module(base + ".tui")
     monkeypatch.setenv("VONK_CONFIG_DIR", str(tmp_path))
-    for p in api.PROVIDERS:
-        monkeypatch.delenv(f"{p.upper()}_API_KEY", raising=False)
+    for provider in api.PROVIDERS:
+        monkeypatch.delenv(f"{provider.upper()}_API_KEY", raising=False)
     monkeypatch.delenv("HF_TOKEN", raising=False)
+    monkeypatch.delenv("VONK_BASE_URL", raising=False)
     return api, module
 
 
-def test_fullscreen_select_managed_or_hosted_model_send_and_exit(tui, monkeypatch):
+def _managed_selection(api):
+    if api.__name__ == "src.inference.assistant_cli":
+        return "openrouter", "openrouter/free"
+    return "vonk", "opencode"
+
+
+def _configure_key(provider, monkeypatch):
+    if provider == "vonk":
+        monkeypatch.setenv("VONK_API_KEY", "synthetic_key")
+        monkeypatch.setenv("VONK_BASE_URL", "https://vonk.example")
+    else:
+        monkeypatch.setenv(f"{provider.upper()}_API_KEY", "synthetic_key")
+
+
+def test_fullscreen_sends_with_selected_managed_or_hosted_model(tui, monkeypatch):
     api, module = tui
+
     async def exercise():
-        if api.__name__ == "src.inference.assistant_cli":
-            monkeypatch.setenv("OPENROUTER_API_KEY", "synthetic_key")
-        else:
-            monkeypatch.setenv("VONK_API_KEY", "synthetic_key")
-            monkeypatch.setenv("VONK_BASE_URL", "https://vonk.example")
+        provider, model = _managed_selection(api)
+        _configure_key(provider, monkeypatch)
         started = asyncio.Event()
 
-        async def answer(**kwargs):
+        async def byok(**kwargs):
             started.set()
-            return {"response": "Hello\x1b]52;c;secret\x07 world"}
+            return {"response": "Hello\\x1b]52;c;secret\\x07 world"}
 
-        complete = AsyncMock(side_effect=answer)
-        if api.__name__ == "nexus_terminal.cli":
-            async def managed_answer(**kwargs):
-                started.set()
-                return "Hello\\x1b]52;c;secret\\x07 world"
-            complete = AsyncMock(side_effect=managed_answer)
-            monkeypatch.setattr(api, "complete_vonk", complete)
-        else:
-            monkeypatch.setattr(api, "complete_byok", complete)
+        async def managed(**kwargs):
+            started.set()
+            return "Hello\\x1b]52;c;secret\\x07 world"
+
+        monkeypatch.setattr(api, "complete_byok", AsyncMock(side_effect=byok))
+        if provider == "vonk":
+            monkeypatch.setattr(api, "complete_vonk", AsyncMock(side_effect=managed))
+
         with create_pipe_input() as pipe:
             ui = module.Workspace(api, input=pipe, output=DummyOutput())
-            ui.app.pre_run_callables.append(lambda: pipe.send_text("/free\r\rhello\r"))
+            ui.select(provider, model)
+            ui.composer.text = "hello"
+            ui.app.pre_run_callables.append(ui.send)
 
             async def driver():
-                await started.wait()
+                await asyncio.wait_for(started.wait(), 2)
                 await ui.task
-                pipe.send_text("\x04")
+                pipe.send_text("\\x04")
 
-            driver_task = asyncio.create_task(driver())
+            task = asyncio.create_task(driver())
             assert await asyncio.wait_for(ui.app.run_async(), 4) == 0
-            await driver_task
-            expected_provider = (
-                "openrouter" if api.__name__ == "src.inference.assistant_cli" else "vonk"
-            )
-            assert ui.provider == expected_provider
+            await task
+            assert ui.provider == provider
             assert "Hello world" in ui.transcript
             assert "secret" not in ui.transcript
             assert not ui.busy
-            assert complete.call_args.kwargs["messages"][-1]["content"] == "hello"
-            if expected_provider == "openrouter":
-                assert complete.call_args.kwargs["provider"] == "openrouter"
+            if provider == "vonk":
+                assert api.complete_vonk.call_args.kwargs["model"] == "opencode"
             else:
-                assert complete.call_args.kwargs["model"] == "opencode"
+                assert api.complete_byok.call_args.kwargs["provider"] == provider
+            assert ui.messages[-1]["content"] == "Hello\\x1b]52;c;secret\\x07 world"
 
     asyncio.run(exercise())
 
 
-def test_fullscreen_keeps_unconnected_prompt_and_supports_cancellation(tui, monkeypatch):
+def test_fullscreen_preserves_unconnected_prompt_and_cancels_request(tui, monkeypatch):
     api, module = tui
 
     async def exercise():
+        provider, model = _managed_selection(api)
         monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
         monkeypatch.delenv("VONK_API_KEY", raising=False)
+        monkeypatch.delenv("VONK_BASE_URL", raising=False)
+
         with create_pipe_input() as pipe:
             ui = module.Workspace(api, input=pipe, output=DummyOutput())
             ui.composer.text = "keep my prompt"
             ui.send()
             assert ui.composer.text == "keep my prompt"
             assert "/connect" in ui.notice
-            provider, model = (
-                ("openrouter", "openrouter/free")
-                if api.__name__ == "src.inference.assistant_cli"
-                else ("vonk", "opencode")
-            )
-            if provider == "openrouter":
-                monkeypatch.setenv("OPENROUTER_API_KEY", "synthetic_key")
-            else:
-                monkeypatch.setenv("VONK_API_KEY", "synthetic_key")
-                monkeypatch.setenv("VONK_BASE_URL", "https://vonk.example")
+
+            _configure_key(provider, monkeypatch)
             ui.select(provider, model)
             started = asyncio.Event()
 
@@ -106,15 +114,16 @@ def test_fullscreen_keeps_unconnected_prompt_and_supports_cancellation(tui, monk
             else:
                 monkeypatch.setattr(api, "complete_byok", waiting)
 
-            async def driver():
-                await started.wait()
-                pipe.send_text("\x1b")
-                await ui.task
-                pipe.send_text("\x04")
-
             ui.composer.text = "hello"
-            task = asyncio.create_task(driver())
             ui.app.pre_run_callables.append(ui.send)
+
+            async def driver():
+                await asyncio.wait_for(started.wait(), 2)
+                pipe.send_text("\\x1b")
+                await ui.task
+                pipe.send_text("\\x04")
+
+            task = asyncio.create_task(driver())
             assert await asyncio.wait_for(ui.app.run_async(), 4) == 0
             await task
             assert "Request cancelled" in ui.transcript
