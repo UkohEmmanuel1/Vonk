@@ -34,7 +34,7 @@ def model_picker(api, config):
     entries = []
     for provider, models in api.EXAMPLE_MODELS.items():
         for model in models:
-            note = "local, no API bill" if provider == "ollama" else "your API key"
+            note = "Vonk managed gateway" if provider == "vonk" else "your API key"
             if provider == "openrouter" and model == "openrouter/free":
                 note = "free tier; account/quota required"
             entries.append((provider, model, f"{provider} / {model} [{note}]"))
@@ -49,12 +49,12 @@ def connect_provider(api, config, keys):
     providers = list(api.PROVIDERS)
     chosen = pick(
         "CONNECT A PROVIDER",
-        [p + (" - local, no key" if p == "ollama" else " - enter your API key") for p in providers],
+        [p + (" - Vonk API key" if p == "vonk" else " - enter your API key") for p in providers],
     )
     if chosen is None:
         return
     provider = providers[chosen]
-    if provider != "ollama":
+    if provider != "vonk":
         if not sys.stdin.isatty():
             print(
                 "  Run 'vonk login PROVIDER' in an interactive terminal, or set its key variable."
@@ -70,7 +70,7 @@ def free_models(api, config):
     selected = pick(
         "FREE MODEL OPTIONS",
         [
-            "Local Ollama - no provider API key or per-token bill; runs on your computer",
+            "Vonk managed inference - configure VONK_BASE_URL and VONK_API_KEY",
             "OpenRouter free router - own free-tier API key and rate limits apply",
         ],
     )
@@ -154,7 +154,7 @@ def dashboard(api, connect=False):
     while True:
         try:
             settings = api.load(config)
-            provider = settings.get("provider", "deepseek")
+            provider = settings.get("provider", "vonk")
             model = settings.get("model", api.EXAMPLE_MODELS.get(provider, ["not selected"])[0])
             key, source = (
                 api.credential(provider, keys)
@@ -189,7 +189,7 @@ def dashboard(api, connect=False):
                     panel(
                         "CONNECT BEFORE CHATTING",
                         [
-                            "Choose 3 to connect your provider, or 4 for local/free-tier options.",
+                            "Choose 3 to connect your provider, or 4 for available hosted options.",
                             "You can browse Vonk without any API key.",
                         ],
                     )
@@ -209,7 +209,7 @@ def dashboard(api, connect=False):
                 panel(
                     "WORKSPACE HELP",
                     [
-                        "Connect uses your own provider key. Free local models use Ollama.",
+                        "Connect uses your own provider key or the Vonk managed gateway.",
                         "Skills add instructions to chat; they do not execute code.",
                         "MCP runs trusted local server programs after confirmation.",
                         "Chat is read-only: attach files for review; no automatic source edits.",

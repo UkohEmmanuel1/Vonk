@@ -20,7 +20,7 @@ import { dashboard, extensionCommand } from "../lib/ui.js";
 
 export const VERSION = "0.4.0";
 export const endpoints = {
-    ollama: "http://127.0.0.1:11434/v1/chat/completions",
+    vonk: null,
     openai: "https://api.openai.com/v1/chat/completions",
     deepseek: "https://api.deepseek.com/chat/completions",
     groq: "https://api.groq.com/openai/v1/chat/completions",
@@ -40,7 +40,7 @@ export const hfModels = {
     mimo: "XiaomiMiMo/MiMo-V2.5",
 };
 export const examples = {
-    ollama: "qwen2.5-coder:1.5b",
+    vonk: "opencode",
     openai: "gpt-4.1-mini",
     deepseek: "deepseek-chat",
     groq: "llama-3.3-70b-versatile",
@@ -118,7 +118,7 @@ export async function save(path, data, secret = false) {
     }
 }
 export async function credential(provider, path) {
-    if (provider === "ollama") return ["ollama-local", "local / no API key"];
+    if (provider === "vonk") return [process.env.VONK_API_KEY, process.env.VONK_API_KEY ? "VONK_API_KEY" : "not configured"];
     const names = [provider.toUpperCase() + "_API_KEY"];
     if (provider === "huggingface") names.push("HF_TOKEN");
     for (const name of names)
@@ -232,7 +232,39 @@ export async function complete(
     cancelSignal,
 ) {
     model = resolveModel(provider, model);
-    if (provider === "ollama") key = "ollama-local";
+    if (provider === "vonk") {
+        if (typeof key !== "string" || !/^[\\x21-\\x7e]{1,512}$/.test(key))
+            throw new CLIError("Set VONK_API_KEY and VONK_BASE_URL to use the managed Vonk gateway");
+        const base = (process.env.VONK_BASE_URL || "").replace(/\\/$/, "");
+        let parsed;
+        try { parsed = new URL(base); } catch { throw new CLIError("Invalid VONK_BASE_URL"); }
+        if (!["https:", "http:"].includes(parsed.protocol) ||
+            (parsed.protocol !== "https:" && !["localhost", "127.0.0.1", "::1"].includes(parsed.hostname)) ||
+            parsed.username || parsed.password || parsed.search || parsed.hash)
+            throw new CLIError("VONK_BASE_URL must be HTTPS (HTTP is allowed only on localhost)");
+        try {
+            const response = await fetcher(base + "/v1/chat/completions", {
+                method: "POST",
+                headers: { Authorization: "Bearer " + key, "content-type": "application/json" },
+                body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature, stream: false }),
+                signal: cancelSignal ? AbortSignal.any([AbortSignal.timeout(120000), cancelSignal]) : AbortSignal.timeout(120000),
+                redirect: "error",
+            });
+            if (!response.ok) {
+                let detail = "Vonk managed inference failed";
+                try { detail = (await response.json()).detail || detail; } catch {}
+                throw new CLIError(String(detail).slice(0, 300));
+            }
+            const data = await response.json();
+            const text = data.choices?.[0]?.message?.content;
+            if (typeof text !== "string" || !text.trim()) throw new Error();
+            return text;
+        } catch (error) {
+            if (error instanceof CLIError) throw error;
+            if (cancelSignal?.aborted) throw new CLIError("Cancelled");
+            throw new CLIError("Vonk gateway unreachable or returned an invalid response");
+        }
+    }
     if (typeof key !== "string" || !/^[\x21-\x7e]{1,512}$/.test(key))
         throw new CLIError("Invalid provider API key");
     if (
@@ -381,6 +413,20 @@ export async function main(argv = process.argv.slice(2), dependencies = {}) {
                 ? [args[0]]
                 : Object.keys(endpoints)) {
                 console.log(provider + ":");
+                if (provider === "vonk") {
+                    const base = (process.env.VONK_BASE_URL || "").replace(/\\/$/, "");
+                    const key = process.env.VONK_API_KEY;
+                    if (!base || !key) console.log("  Configure VONK_BASE_URL and VONK_API_KEY");
+                    else {
+                        const response = await (dependencies.fetch || fetch)(base + "/v1/models", {
+                            headers: { Authorization: "Bearer " + key }, redirect: "error",
+                        });
+                        if (!response.ok) throw new CLIError("Cannot retrieve Vonk models");
+                        const data = await response.json();
+                        for (const item of data.data || []) console.log("  " + item.id);
+                    }
+                    continue;
+                }
                 if (provider === "huggingface")
                     for (const [alias, model] of Object.entries(hfModels))
                         console.log("  " + alias.padEnd(15) + " " + model);
@@ -461,7 +507,7 @@ export async function main(argv = process.argv.slice(2), dependencies = {}) {
         }
         const settings = await load(config),
             options = parsed.values;
-        const provider = options.provider ?? settings.provider ?? "deepseek";
+        const provider = options.provider ?? settings.provider ?? "vonk";
         validateProvider(provider);
         const selected =
             options.model ??
