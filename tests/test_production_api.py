@@ -76,8 +76,6 @@ def test_request_ids_are_unique_and_credentials_are_not_logged(production_client
 def test_managed_freellm_routes_are_authenticated_and_support_streaming(
     production_client, monkeypatch
 ):
-    from src.inference.server import FreeLLMError
-
     async def models():
         return [{"id": "opencode::sample", "provider": "opencode"}]
 
@@ -88,7 +86,7 @@ def test_managed_freellm_routes_are_authenticated_and_support_streaming(
         }
 
     async def streaming(**kwargs):
-        yield 'data: {"choices":[{"delta":{"content":"managed"}}]}\\n\\n'
+        yield 'data: {"choices":[{"delta":{"content":"managed"}}]}\n\n'
 
     monkeypatch.setattr("src.inference.server.list_freellm_models", models)
     monkeypatch.setattr("src.inference.server.complete_freellm", completion)
