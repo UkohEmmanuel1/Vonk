@@ -118,7 +118,13 @@ export async function save(path, data, secret = false) {
     }
 }
 export async function credential(provider, path) {
-    if (provider === "vonk") return [process.env.VONK_API_KEY, process.env.VONK_API_KEY ? "VONK_API_KEY" : "not configured"];
+    if (provider === "vonk") {
+        const configured = Boolean(process.env.VONK_API_KEY && process.env.VONK_BASE_URL);
+        return [
+            configured ? process.env.VONK_API_KEY : null,
+            configured ? "VONK_API_KEY + VONK_BASE_URL" : "not configured",
+        ];
+    }
     const names = [provider.toUpperCase() + "_API_KEY"];
     if (provider === "huggingface") names.push("HF_TOKEN");
     for (const name of names)

@@ -75,7 +75,11 @@ def save(path, data, secret=False):
 def credential(provider, keys_path):
     if provider == "vonk":
         key = os.environ.get("VONK_API_KEY")
-        return key, "VONK_API_KEY" if key else "not configured"
+        configured = bool(key and os.environ.get("VONK_BASE_URL"))
+        return (
+            key if configured else None,
+            "VONK_API_KEY + VONK_BASE_URL" if configured else "not configured",
+        )
     names = [f"{provider.upper()}_API_KEY"]
     if provider == "huggingface":
         names.append("HF_TOKEN")
@@ -225,6 +229,9 @@ def run(argv=None):
         for provider in [args.provider] if args.provider else PROVIDERS:
             print(provider + ":")
             if provider == "vonk":
+                if not credential(provider, keys_path)[0]:
+                    print("  Configure VONK_BASE_URL and VONK_API_KEY")
+                    continue
                 try:
                     print("  " + ", ".join(asyncio.run(list_vonk_models())))
                 except Exception as exc:
