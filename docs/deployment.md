@@ -20,6 +20,9 @@ one non-root Docker container. Docker Compose is also available under `docker/`.
 | `/v1/keys/generate` | POST | Admin key |
 | `/v1/keys` | GET | Admin key; returns identifiers, never raw keys |
 | `/v1/keys/revoke` | POST | Admin key; accepts a key identifier in `key` |
+| `/v1/models` | GET | API key; live FreeLLM catalogue |
+| `/v1/chat/completions` | POST | API key; managed FreeLLM inference |
+| `/v1/chat/byok` | POST | API key + caller's `X-Provider-Key` |
 | `/crawl`, `/crawl/stream`, `/crawl/schedule` | POST | Admin key; disabled by default |
 | `/crawl/status`, `/crawl/data` | GET | Admin key; disabled by default |
 
@@ -37,3 +40,22 @@ embedding, agent execution, or code execution endpoints. The Python research
 framework has additional components that are not exposed by this deployment.
 The legacy Kubernetes templates need separate cluster provisioning and secrets;
 the Render Blueprint is the supported deployment path for this release.
+
+
+For managed FreeLLM inference, also configure `FREELLM_BASE_URL` and
+`FREELLM_API_KEY`. See [FreeLLM integration](freellm.md). These credentials
+belong only in the API service environment.
+
+
+## Managed FreeLLM gateway
+
+For OpenCode-first managed inference, configure `FREELLM_BASE_URL` (the
+OpenAI-compatible gateway base URL including `/v1`) and `FREELLM_API_KEY`
+in the service environment. Set `FREELLM_MAX_MODEL_ATTEMPTS` to a value from
+1 to 8 to bound model fallback attempts.
+
+The production container and Render Blueprint store provider circuit-breaker
+state at `/var/data/vonk_provider_health.sqlite3`. Render mounts `/var/data`
+on its persistent disk, so circuit state survives process restarts and deploys.
+For Docker Compose, the named `nexus-data` volume is mounted at the same path.
+Never commit the FreeLLM gateway key.

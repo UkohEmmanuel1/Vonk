@@ -15,6 +15,8 @@ def cli(request, monkeypatch, tmp_path):
     for provider in module.PROVIDERS:
         monkeypatch.delenv(f"{provider.upper()}_API_KEY", raising=False)
     monkeypatch.delenv("HF_TOKEN", raising=False)
+    monkeypatch.delenv("VONK_API_KEY", raising=False)
+    monkeypatch.delenv("VONK_BASE_URL", raising=False)
     return module
 
 
@@ -157,3 +159,30 @@ def test_noninteractive_login_and_terminal_control_safety(cli, monkeypatch):
 @pytest.mark.parametrize("args", [["--max-tokens", "0"], ["--temperature", "nan"]])
 def test_invalid_generation_settings(cli, args):
     assert cli.main(["chat", *args, "hello"]) == 2
+
+
+
+def test_python_cli_managed_vonk_gateway_default(cli, monkeypatch, capsys):
+    if cli.__name__ != "nexus_terminal.cli":
+        pytest.skip("Managed Vonk default is tested by the standalone CLI package")
+    monkeypatch.setenv("VONK_API_KEY", "synthetic_vonk_key")
+    monkeypatch.setenv("VONK_BASE_URL", "https://vonk.example")
+    captured = []
+    actual_client = httpx.AsyncClient
+
+    def upstream(request):
+        captured.append(request)
+        if request.url.path == "/v1/chat/completions":
+            return httpx.Response(200, json={
+                "choices": [{"message": {"content": "managed answer"}}]
+            })
+        return httpx.Response(200, json={"data": [{"id": "opencode::model"}]})
+
+    monkeypatch.setattr(
+        httpx, "AsyncClient",
+        lambda **kwargs: actual_client(transport=httpx.MockTransport(upstream), **kwargs),
+    )
+    assert cli.main(["chat", "hello"]) == 0
+    assert captured[0].url.path == "/v1/chat/completions"
+    assert json.loads(captured[0].content)["model"] == "opencode"
+    assert "managed answer" in capsys.readouterr().out

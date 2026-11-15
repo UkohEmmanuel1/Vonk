@@ -175,7 +175,7 @@ class Workspace:
             "Vonk",
             "Your project. Your models. Your flow.\n\n"
             "Write a prompt below, or open /models and /connect.\n"
-            "Free local chat: /free. Skills: /skills. Connections: /mcp.",
+            "Hosted model options: /free. Skills: /skills. Connections: /mcp.",
         )
         self.home = True
 
@@ -289,7 +289,7 @@ class Workspace:
         elif mode == "models":
             self.select(*value)
         elif mode == "connect":
-            if value == "ollama":
+            if value == "vonk":
                 self.select(value, self.api.EXAMPLE_MODELS[value][0])
             else:
                 self.task = self.app.create_background_task(self.login(value))
@@ -297,8 +297,8 @@ class Workspace:
             self.select(*value)
             self.append(
                 "Free models",
-                "Local: install Ollama and run `ollama pull qwen2.5-coder:1.5b`. "
-                "Keep Ollama running. OpenRouter requires your own free-tier key and quotas.",
+                "Vonk managed inference uses the OpenCode-first FreeLLM route. "
+                "Configure VONK_BASE_URL and VONK_API_KEY. OpenRouter requires your own key.",
             )
         elif mode == "skills":
             self.store.toggle_skill(value[0], not value[1])
@@ -354,7 +354,7 @@ class Workspace:
             self.show(
                 "connect",
                 [
-                    (p, p + (" · local, no key" if p == "ollama" else " · your API key"))
+                    (p, p + (" · managed gateway" if p == "vonk" else " · your API key"))
                     for p in self.api.PROVIDERS
                 ],
             )
@@ -362,7 +362,7 @@ class Workspace:
             self.show(
                 "free",
                 [
-                    (("ollama", "qwen2.5-coder:1.5b"), "Ollama · local / no API bill"),
+                    (("vonk", "opencode"), "Vonk · OpenCode-first managed inference"),
                     (("openrouter", "openrouter/free"), "OpenRouter · free tier / own key"),
                 ],
             )
@@ -423,7 +423,7 @@ class Workspace:
             self.notice = "Prompt exceeds 16,000 characters. Shorten it before sending."
             return
         if not self.key:
-            self.notice = "Connect a provider with /connect, or choose a local model with /free."
+            self.notice = "Connect a provider with /connect, or choose a hosted model with /free."
             self.modal = None
             return
         self.composer.text = ""
@@ -439,15 +439,23 @@ class Workspace:
             turns = self.messages + [{"role": "user", "content": prompt}]
             while len(turns) > 99 or sum(len(m["content"]) for m in turns) > 120000:
                 del turns[1:3]
-            result = await self.api.complete_byok(
-                provider=self.provider,
-                model=self.model,
-                messages=turns,
-                provider_key=self.key,
-                max_tokens=2048,
-                temperature=0.7,
-            )
-            answer = result["response"]
+            if self.provider == "vonk":
+                answer = await self.api.complete_vonk(
+                    model=self.model,
+                    messages=turns,
+                    max_tokens=2048,
+                    temperature=0.7,
+                )
+            else:
+                result = await self.api.complete_byok(
+                    provider=self.provider,
+                    model=self.model,
+                    messages=turns,
+                    provider_key=self.key,
+                    max_tokens=2048,
+                    temperature=0.7,
+                )
+                answer = result["response"]
             self.messages = turns + [{"role": "assistant", "content": answer}]
             self.append("Vonk", answer)
             self.notice = "Ready. /new starts fresh."

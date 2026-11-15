@@ -28,7 +28,7 @@ HUGGINGFACE_MODELS = {
 # Fixed provider endpoints. Model identifiers may change; users supply one supported
 # by their own provider account. Nothing here asserts model access or pricing.
 PROVIDERS = {
-    "ollama": ("http://127.0.0.1:11434/v1/chat/completions", "openai"),
+    "vonk": (None, "managed"),
     "openai": ("https://api.openai.com/v1/chat/completions", "openai"),
     "deepseek": ("https://api.deepseek.com/chat/completions", "openai"),
     "groq": ("https://api.groq.com/openai/v1/chat/completions", "openai"),
@@ -49,7 +49,7 @@ PROVIDERS = {
 # Examples only. Use /v1/providers to discover providers, and consult the
 # provider's live catalog for currently supported model names.
 EXAMPLE_MODELS = {
-    "ollama": ["qwen2.5-coder:1.5b", "deepseek-r1:1.5b"],
+    "vonk": ["opencode"],
     "openai": ["gpt-4.1-mini"],
     "deepseek": ["deepseek-chat", "deepseek-reasoner"],
     "groq": ["llama-3.3-70b-versatile"],
@@ -90,8 +90,6 @@ async def complete_byok(
 ) -> dict:
     if not isinstance(provider, str) or provider not in PROVIDERS:
         raise ProviderError(400, "Unsupported provider")
-    if provider == "ollama":
-        provider_key = "ollama-local"
     if (
         not isinstance(provider_key, str)
         or not 1 <= len(provider_key) <= 512
@@ -119,6 +117,8 @@ async def complete_byok(
     if not isinstance(temperature, (int, float)) or not 0 < temperature <= 2:
         raise ProviderError(400, "temperature must be greater than 0 and at most 2")
     url, protocol = PROVIDERS[provider]
+    if protocol == "managed":
+        raise ProviderError(400, "Use the Vonk managed gateway client for this provider")
     if protocol == "anthropic":
         system = "\n".join(m["content"] for m in messages if m["role"] == "system")
         turns = [m for m in messages if m["role"] != "system"]
@@ -182,3 +182,80 @@ async def complete_byok(
         return {"provider": provider, "model": model, "response": text, "usage": usage}
     except (KeyError, IndexError, TypeError, ValueError, AttributeError):
         raise ProviderError(502, "Unexpected model provider response") from None
+
+
+def _vonk_configuration() -> tuple[str, str]:
+    import os
+    from urllib.parse import urlsplit
+
+    base_url = os.environ.get("VONK_BASE_URL", "").strip().rstrip("/")
+    api_key = os.environ.get("VONK_API_KEY", "").strip()
+    parsed = urlsplit(base_url)
+    if (
+        parsed.scheme not in {"https", "http"}
+        or not parsed.netloc
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+        or (parsed.scheme != "https" and parsed.hostname not in {"localhost", "127.0.0.1", "::1"})
+    ):
+        raise ProviderError(503, "Set VONK_BASE_URL to your Vonk HTTPS API base URL")
+    if not api_key or len(api_key) > 512 or not all(32 < ord(c) < 127 for c in api_key):
+        raise ProviderError(503, "Set VONK_API_KEY to a Vonk API key")
+    return base_url, api_key
+
+
+async def list_vonk_models() -> list[str]:
+    base_url, api_key = _vonk_configuration()
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(15, connect=5), trust_env=False
+        ) as client:
+            response = await client.get(
+                f"{base_url}/v1/models", headers={"Authorization": f"Bearer {api_key}"}
+            )
+    except httpx.RequestError:
+        raise ProviderError(502, "Vonk gateway unreachable") from None
+    if response.status_code != 200:
+        raise ProviderError(502, "Vonk model catalogue request failed")
+    try:
+        data = response.json()
+        models = data["data"]
+        return [
+            item["id"]
+            for item in models
+            if isinstance(item, dict) and isinstance(item.get("id"), str)
+        ]
+    except (ValueError, KeyError, TypeError):
+        raise ProviderError(502, "Vonk returned an invalid model catalogue") from None
+
+
+async def complete_vonk(
+    *, model: str, messages: list[dict], max_tokens: int = 1024, temperature: float = 0.7
+) -> str:
+    base_url, api_key = _vonk_configuration()
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(120, connect=10), trust_env=False
+        ) as client:
+            response = await client.post(
+                f"{base_url}/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={
+                    "model": model, "messages": messages, "max_tokens": max_tokens,
+                    "temperature": temperature, "stream": False,
+                },
+            )
+    except httpx.RequestError:
+        raise ProviderError(502, "Vonk gateway unreachable") from None
+    if response.status_code != 200:
+        try:
+            detail = response.json().get("detail", "Vonk inference failed")
+        except (ValueError, AttributeError):
+            detail = "Vonk inference failed"
+        raise ProviderError(response.status_code, str(detail)[:300])
+    try:
+        return response.json()["choices"][0]["message"]["content"]
+    except (ValueError, KeyError, IndexError, TypeError):
+        raise ProviderError(502, "Vonk returned an invalid completion response") from None

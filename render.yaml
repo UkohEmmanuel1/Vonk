@@ -29,6 +29,14 @@ services:
         value: ""
       - key: NEXUS_RATE_LIMIT
         value: "60"
+      - key: FREELLM_BASE_URL
+        sync: false
+      - key: FREELLM_API_KEY
+        sync: false
+      - key: FREELLM_MAX_MODEL_ATTEMPTS
+        value: "4"
+      - key: NEXUS_PROVIDER_HEALTH_DB
+        value: /var/data/vonk_provider_health.sqlite3
     disk:
       name: vonk-data
       mountPath: /var/data

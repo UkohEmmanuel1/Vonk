@@ -185,14 +185,14 @@ export async function dashboard(api, directory, connect = false) {
             providers.map(
                 (x) =>
                     x +
-                    (x === "ollama"
-                        ? " - local, no key"
+                    (x === "vonk"
+                        ? " - Vonk managed gateway"
                         : " - enter your API key"),
             ),
         );
         if (n === null) return;
         const provider = providers[n];
-        if (provider !== "ollama") {
+        if (provider !== "vonk") {
             if (!process.stdin.isTTY) {
                 console.log(
                     "Run vonk login PROVIDER in an interactive terminal or set its key variable.",
@@ -209,7 +209,7 @@ export async function dashboard(api, directory, connect = false) {
         if (connect) await providerPicker();
         while (true) {
             const settings = await api.load(config),
-                provider = settings.provider || "deepseek",
+                provider = settings.provider || "vonk",
                 model =
                     settings.model || api.examples[provider] || "not selected";
             const [key, source] = Object.hasOwn(api.endpoints, provider)
@@ -267,18 +267,15 @@ export async function dashboard(api, directory, connect = false) {
                     await providerPicker();
                 else if (["4", "/free"].includes(command)) {
                     const n = await pick(input, "FREE MODEL OPTIONS", [
-                        "Local Ollama - no API key or per-token bill; uses your hardware",
+                        "Vonk managed inference - OpenCode default with automatic fallback",
                         "OpenRouter free router - own free-tier API key and rate limits",
                     ]);
                     if (n === 0) {
-                        await api.save(config, {
-                            provider: "ollama",
-                            model: "qwen2.5-coder:1.5b",
-                        });
-                        panel("LOCAL OLLAMA SELECTED", [
-                            "Install Ollama from https://ollama.com if needed.",
-                            "Run: ollama pull qwen2.5-coder:1.5b",
-                            "Keep Ollama running, then choose Start chat. Download/hardware required.",
+                        await api.save(config, { provider: "vonk", model: "opencode" });
+                        panel("VONK MANAGED GATEWAY", [
+                            "Set VONK_BASE_URL to your Vonk API URL.",
+                            "Set VONK_API_KEY to your Vonk API key.",
+                            "OpenCode is the default; Vonk handles fallback.",
                         ]);
                     } else if (n === 1) {
                         await api.save(config, {

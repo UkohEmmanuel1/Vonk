@@ -20,6 +20,11 @@ from starlette.background import BackgroundTask
 
 from src.agents.crawl_scheduler import CrawlScheduler
 from src.agents.web_crawler import CrawlTask, WebCrawler
+from src.inference import provider_health
+from src.inference.freellm import FreeLLMError
+from src.inference.freellm import complete as complete_freellm
+from src.inference.freellm import list_models as list_freellm_models
+from src.inference.freellm import stream as stream_freellm
 from src.inference.providers import EXAMPLE_MODELS, PROVIDERS, ProviderError, complete_byok
 from src.inference.security import WindowLimiter
 
@@ -131,6 +136,10 @@ def create_app(
     credential_limiter = WindowLimiter(rate_limit)
     authentication_limiter = WindowLimiter(300)
 
+    @app.exception_handler(FreeLLMError)
+    async def freellm_error(request: Request, exc: FreeLLMError):
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
     @app.exception_handler(ProviderError)
     async def provider_error(request: Request, exc: ProviderError):
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
@@ -231,6 +240,13 @@ def create_app(
         max_tokens: int = Field(default=512, ge=1, le=2048)
         temperature: float = Field(default=0.7, ge=0, le=2)
 
+    class ManagedChatRequest(BaseModel):
+        model: str = Field(default="opencode", min_length=1, max_length=300)
+        messages: list[ProviderMessage] = Field(min_length=1, max_length=30)
+        max_tokens: int = Field(default=512, ge=1, le=2048)
+        temperature: float = Field(default=0.7, ge=0, le=2)
+        stream: bool = False
+
     class GenerateRequest(BaseModel):
         prompt: str = Field(min_length=1, max_length=16000)
         max_tokens: int = Field(default=512, ge=1, le=2048)
@@ -319,15 +335,12 @@ def create_app(
             "providers": [
                 {"id": key, "example_models": EXAMPLE_MODELS.get(key, [])}
                 for key in PROVIDERS
-                if key != "ollama"
             ],
             "note": "Examples only; model availability depends on provider account.",
         }
 
     @app.post("/v1/chat/byok")
     async def provider_chat(req: ProviderChatRequest, request: Request):
-        if req.provider == "ollama":
-            raise HTTPException(400, "Ollama is a local CLI-only provider")
         # User-supplied API key is forwarded for this request only.
         # Do not persist it or include it in request bodies or logs.
         provider_key = request.headers.get("X-Provider-Key", "")
@@ -338,6 +351,54 @@ def create_app(
             model=req.model,
             messages=[message.model_dump() for message in req.messages],
             provider_key=provider_key,
+            max_tokens=req.max_tokens,
+            temperature=req.temperature,
+        )
+
+    @app.get("/v1/models")
+    async def managed_models():
+        models = await list_freellm_models()
+        return {
+            "object": "list",
+            "data": [
+                {"id": item["id"], "object": "model",
+                 "owned_by": item.get("provider") or item.get("owned_by") or "freellm"}
+                for item in models
+            ],
+            "default_model": "opencode",
+        }
+
+    @app.get("/v1/provider-health")
+    async def managed_provider_health():
+        return {"providers": provider_health.snapshot()}
+
+    @app.post("/v1/chat/completions")
+    async def managed_chat(req: ManagedChatRequest):
+        messages = [message.model_dump() for message in req.messages]
+        if req.stream:
+            async def events():
+                try:
+                    async for event in stream_freellm(
+                        model=req.model,
+                        messages=messages,
+                        max_tokens=req.max_tokens,
+                        temperature=req.temperature,
+                    ):
+                        yield event
+                except FreeLLMError as exc:
+                    payload = json.dumps(
+                        {"error": {"message": exc.detail, "type": "upstream_error"}}
+                    )
+                    yield f"event: error\ndata: {payload}\n\n"
+
+            return StreamingResponse(
+                events(),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
+        return await complete_freellm(
+            model=req.model,
+            messages=messages,
             max_tokens=req.max_tokens,
             temperature=req.temperature,
         )

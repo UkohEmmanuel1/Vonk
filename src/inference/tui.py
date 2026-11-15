@@ -175,7 +175,7 @@ class Workspace:
             "Vonk",
             "Your project. Your models. Your flow.\n\n"
             "Write a prompt below, or open /models and /connect.\n"
-            "Free local chat: /free. Skills: /skills. Connections: /mcp.",
+            "Hosted free-tier options: /free. Skills: /skills. Connections: /mcp.",
         )
         self.home = True
 
@@ -289,16 +289,12 @@ class Workspace:
         elif mode == "models":
             self.select(*value)
         elif mode == "connect":
-            if value == "ollama":
-                self.select(value, self.api.EXAMPLE_MODELS[value][0])
-            else:
-                self.task = self.app.create_background_task(self.login(value))
+            self.task = self.app.create_background_task(self.login(value))
         elif mode == "free":
             self.select(*value)
             self.append(
                 "Free models",
-                "Local: install Ollama and run `ollama pull qwen2.5-coder:1.5b`. "
-                "Keep Ollama running. OpenRouter requires your own free-tier key and quotas.",
+                "OpenRouter free tier requires your own API key and is subject to provider quotas.",
             )
         elif mode == "skills":
             self.store.toggle_skill(value[0], not value[1])
@@ -354,7 +350,7 @@ class Workspace:
             self.show(
                 "connect",
                 [
-                    (p, p + (" · local, no key" if p == "ollama" else " · your API key"))
+                    (p, p + " · your API key")
                     for p in self.api.PROVIDERS
                 ],
             )
@@ -362,7 +358,7 @@ class Workspace:
             self.show(
                 "free",
                 [
-                    (("ollama", "qwen2.5-coder:1.5b"), "Ollama · local / no API bill"),
+                    (("openrouter", "openrouter/free"), "OpenRouter · free tier / own key"),
                     (("openrouter", "openrouter/free"), "OpenRouter · free tier / own key"),
                 ],
             )
@@ -423,7 +419,9 @@ class Workspace:
             self.notice = "Prompt exceeds 16,000 characters. Shorten it before sending."
             return
         if not self.key:
-            self.notice = "Connect a provider with /connect, or choose a local model with /free."
+            self.notice = (
+                "Connect a provider with /connect, or choose a hosted free-tier model with /free."
+            )
             self.modal = None
             return
         self.composer.text = ""
