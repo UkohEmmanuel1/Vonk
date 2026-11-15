@@ -24,9 +24,11 @@ from src.inference.freellm import (
     FreeLLMError,
     complete as complete_freellm,
     list_models as list_freellm_models,
+    stream as stream_freellm,
 )
 from src.inference.providers import EXAMPLE_MODELS, PROVIDERS, ProviderError, complete_byok
 from src.inference.security import WindowLimiter
+from src.inference import provider_health
 
 if TYPE_CHECKING:
     from src.inference.engine import InferenceEngine
@@ -245,6 +247,7 @@ def create_app(
         messages: list[ProviderMessage] = Field(min_length=1, max_length=30)
         max_tokens: int = Field(default=512, ge=1, le=2048)
         temperature: float = Field(default=0.7, ge=0, le=2)
+        stream: bool = False
 
     class GenerateRequest(BaseModel):
         prompt: str = Field(min_length=1, max_length=16000)
@@ -370,11 +373,36 @@ def create_app(
             "default_model": "opencode",
         }
 
+    @app.get("/v1/provider-health")
+    async def managed_provider_health():
+        return {"providers": provider_health.snapshot()}
+
     @app.post("/v1/chat/completions")
     async def managed_chat(req: ManagedChatRequest):
+        messages = [message.model_dump() for message in req.messages]
+        if req.stream:
+            async def events():
+                try:
+                    async for event in stream_freellm(
+                        model=req.model,
+                        messages=messages,
+                        max_tokens=req.max_tokens,
+                        temperature=req.temperature,
+                    ):
+                        yield event
+                    yield "data: [DONE]\\n\\n"
+                except FreeLLMError as exc:
+                    payload = json.dumps({"error": {"message": exc.detail, "type": "upstream_error"}})
+                    yield f"event: error\\ndata: {payload}\\n\\n"
+
+            return StreamingResponse(
+                events(),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
         return await complete_freellm(
             model=req.model,
-            messages=[message.model_dump() for message in req.messages],
+            messages=messages,
             max_tokens=req.max_tokens,
             temperature=req.temperature,
         )
