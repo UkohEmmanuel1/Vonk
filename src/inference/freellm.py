@@ -1,15 +1,14 @@
-"""FreeLLM gateway integration with OpenCode-first model selection and fallback.
-
-Configure FREELLM_BASE_URL (the gateway's OpenAI-compatible /v1 base URL) and
-FREELLM_API_KEY. Model IDs are discovered from the gateway; no provider/model
-catalogue is hardcoded in Vonk.
-"""
+"""FreeLLM-compatible OpenAI gateway with OpenCode-first routing and SSE streaming."""
 from __future__ import annotations
 
+import json
 import os
+from collections.abc import AsyncIterator
 from urllib.parse import urlsplit
 
 import httpx
+
+from src.inference import provider_health
 
 
 class FreeLLMError(Exception):
@@ -69,6 +68,7 @@ def _catalog_items(payload: dict) -> list[dict]:
     if not isinstance(items, list):
         raise FreeLLMError(502, "FreeLLM returned an invalid model catalogue")
     result = []
+    seen = set()
     for item in items:
         if (
             not isinstance(item, dict)
@@ -77,7 +77,8 @@ def _catalog_items(payload: dict) -> list[dict]:
         ):
             continue
         model_id = _model_id(item)
-        if model_id:
+        if model_id and model_id not in seen:
+            seen.add(model_id)
             result.append({**item, "id": model_id})
     return result
 
@@ -109,37 +110,28 @@ async def list_models() -> list[dict]:
 
 def _candidate_models(items: list[dict], requested: str) -> list[str]:
     available = [item["id"] for item in items]
-    opencode = [
-        item["id"] for item in items if _is_opencode(item, item["id"])
-    ]
+    opencode = [item["id"] for item in items if _is_opencode(item, item["id"])]
     if requested in {"", "auto", "opencode", "default"}:
         if not opencode:
             raise FreeLLMError(503, "No available OpenCode model was found in the FreeLLM catalogue")
         primary = opencode[0]
     else:
+        if requested not in available:
+            raise FreeLLMError(404, "Requested model is not present in the FreeLLM catalogue")
         primary = requested
-    # OpenCode is preferred for the default route; all remaining catalogue
-    # entries are eligible fallbacks in the order supplied by FreeLLM.
     ordered = [primary]
     ordered.extend(model for model in opencode + available if model != primary)
-    unique = list(dict.fromkeys(ordered))
     try:
         max_attempts = int(os.environ.get("FREELLM_MAX_MODEL_ATTEMPTS", "4"))
     except ValueError:
         max_attempts = 4
-    # A bounded chain prevents a large catalogue from multiplying request latency.
     max_attempts = max(1, min(max_attempts, 8))
-    return unique[:max_attempts]
+    healthy = [model for model in ordered if provider_health.is_available(model)]
+    # If every circuit is open, allow one probe of the preferred model (half-open).
+    return (healthy or ordered[:1])[:max_attempts]
 
 
-async def complete(
-    *,
-    model: str,
-    messages: list[dict],
-    max_tokens: int = 512,
-    temperature: float = 0.7,
-) -> dict:
-    base_url, api_key = _configuration()
+def _validate(messages: list[dict], max_tokens: int, temperature: float) -> None:
     if not isinstance(messages, list) or not 1 <= len(messages) <= 100:
         raise FreeLLMError(400, "Invalid conversation messages")
     if any(
@@ -150,11 +142,45 @@ async def complete(
         for message in messages
     ):
         raise FreeLLMError(400, "Invalid conversation messages")
+    if sum(len(message["content"]) for message in messages) > 120000:
+        raise FreeLLMError(400, "Conversation too large")
     if type(max_tokens) is not int or not 1 <= max_tokens <= 4096:
         raise FreeLLMError(400, "max_tokens must be between 1 and 4096")
     if not isinstance(temperature, (int, float)) or not 0 <= temperature <= 2:
         raise FreeLLMError(400, "temperature must be between 0 and 2")
 
+
+def _headers(api_key: str) -> dict:
+    return {"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
+
+
+def _payload(model: str, messages: list[dict], max_tokens: int, temperature: float, stream: bool):
+    return {
+        "model": model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "stream": stream,
+    }
+
+
+def _failure_kind(status: int) -> str:
+    if status == 429:
+        return "rate_limit"
+    if status >= 500:
+        return "upstream"
+    return "invalid"
+
+
+async def complete(
+    *,
+    model: str,
+    messages: list[dict],
+    max_tokens: int = 512,
+    temperature: float = 0.7,
+) -> dict:
+    _validate(messages, max_tokens, temperature)
+    base_url, api_key = _configuration()
     items = await list_models()
     candidates = _candidate_models(items, model)
     timeout = httpx.Timeout(90.0, connect=10.0, write=15.0, pool=10.0)
@@ -164,38 +190,30 @@ async def complete(
             try:
                 response = await client.post(
                     f"{base_url}/chat/completions",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                    json={
-                        "model": candidate,
-                        "messages": messages,
-                        "max_tokens": max_tokens,
-                        "temperature": temperature,
-                        "stream": False,
-                    },
+                    headers=_headers(api_key),
+                    json=_payload(candidate, messages, max_tokens, temperature, False),
                 )
-            except (httpx.TimeoutException, httpx.RequestError):
+            except httpx.TimeoutException:
+                provider_health.record_failure(candidate, "timeout")
                 last_status = 502
-                if index + 1 < len(candidates):
-                    continue
-                raise FreeLLMError(502, "FreeLLM inference gateway is unreachable") from None
-
+                continue
+            except httpx.RequestError:
+                provider_health.record_failure(candidate, "network")
+                last_status = 502
+                continue
             if response.status_code in (401, 403):
                 raise FreeLLMError(502, "FreeLLM rejected the configured gateway key")
             if response.status_code >= 400 or 300 <= response.status_code < 400:
                 last_status = response.status_code
+                provider_health.record_failure(candidate, _failure_kind(last_status))
                 if response.status_code in _RETRYABLE and index + 1 < len(candidates):
                     continue
                 if response.status_code in _RETRYABLE:
                     break
                 raise FreeLLMError(400, "FreeLLM rejected the model or conversation")
-
             try:
                 data = response.json()
-                if (
-                not isinstance(data, dict)
-                or not isinstance(data.get("choices"), list)
-                or not data["choices"]
-            ):
+                if not isinstance(data, dict) or not isinstance(data.get("choices"), list) or not data["choices"]:
                     raise ValueError
                 data["model"] = candidate
                 data["vonk"] = {
@@ -203,8 +221,57 @@ async def complete(
                     "selected_model": candidate,
                     "fallback_used": candidate != candidates[0],
                 }
+                provider_health.record_success(candidate)
                 return data
             except (ValueError, TypeError):
+                provider_health.record_failure(candidate, "upstream")
                 raise FreeLLMError(502, "FreeLLM returned an invalid inference response") from None
-
     raise FreeLLMError(503, f"All eligible FreeLLM models failed (last status {last_status})")
+
+
+async def stream(
+    *,
+    model: str,
+    messages: list[dict],
+    max_tokens: int = 512,
+    temperature: float = 0.7,
+) -> AsyncIterator[str]:
+    """Stream SSE frames; fallback is attempted only before the first emitted frame."""
+    _validate(messages, max_tokens, temperature)
+    base_url, api_key = _configuration()
+    items = await list_models()
+    candidates = _candidate_models(items, model)
+    timeout = httpx.Timeout(120.0, connect=10.0, write=15.0, pool=10.0)
+    async with httpx.AsyncClient(timeout=timeout, follow_redirects=False, trust_env=False) as client:
+        for index, candidate in enumerate(candidates):
+            try:
+                async with client.stream(
+                    "POST",
+                    f"{base_url}/chat/completions",
+                    headers={**_headers(api_key), "Accept": "text/event-stream"},
+                    json=_payload(candidate, messages, max_tokens, temperature, True),
+                ) as response:
+                    if response.status_code in (401, 403):
+                        raise FreeLLMError(502, "FreeLLM rejected the configured gateway key")
+                    if response.status_code >= 400 or 300 <= response.status_code < 400:
+                        provider_health.record_failure(candidate, _failure_kind(response.status_code))
+                        if response.status_code in _RETRYABLE and index + 1 < len(candidates):
+                            continue
+                        raise FreeLLMError(503, "FreeLLM could not start a streaming response")
+                    provider_health.record_success(candidate)
+                    emitted = False
+                    async for line in response.aiter_lines():
+                        if not line:
+                            continue
+                        emitted = True
+                        yield line + "\n\n"
+                    if not emitted:
+                        provider_health.record_failure(candidate, "upstream")
+                        raise FreeLLMError(502, "FreeLLM returned an empty stream")
+                    return
+            except (httpx.TimeoutException, httpx.RequestError):
+                provider_health.record_failure(candidate, "timeout")
+                if index + 1 < len(candidates):
+                    continue
+                raise FreeLLMError(502, "FreeLLM streaming gateway is unreachable") from None
+    raise FreeLLMError(503, "All eligible FreeLLM streaming models failed")
