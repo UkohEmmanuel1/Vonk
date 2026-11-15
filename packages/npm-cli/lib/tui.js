@@ -106,7 +106,7 @@ export class TerminalSession {
             notice: "Type a message to begin. / opens commands.", busy: false, home: true,
             transcript: "\nVonk\n\nYour project. Your models. Your flow.\n\n"
                 + "Write a prompt below, or open /models and /connect.\n"
-                + "Free local chat: /free. Skills: /skills. Connections: /mcp.\n",
+                + "Managed OpenCode-first chat: /free. Skills: /skills. Connections: /mcp.\n",
         };
         this.draw = () => {};
         this.finish = () => {};
@@ -215,7 +215,7 @@ export class TerminalSession {
         if (!prompt || this.state.busy) return;
         if (prompt.startsWith("/")) return await this.command(prompt);
         if (prompt.length > 16000) { this.state.notice = "Prompt exceeds 16,000 characters."; return; }
-        if (!this.key) { this.state.notice = "Connect with /connect, or choose a local model with /free."; return; }
+        if (!this.key) { this.state.notice = "Connect with /connect, or choose a hosted model with /free."; return; }
         this.state.draft = "";
         this.state.busy = true;
         this.append("You", prompt);

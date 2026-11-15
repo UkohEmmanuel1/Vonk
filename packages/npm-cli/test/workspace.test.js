@@ -47,7 +47,7 @@ test("first launch and vonk chat show a workspace instead of rejecting missing k
         assert.ok(!result.stderr.includes("No key for deepseek"));
     }
 });
-test("free local selection persists and does not require a key", async (t) => {
+test("Vonk managed selection persists and routes to the managed gateway", async (t) => {
     const directory = await isolated(t);
     const result = spawnSync(
         process.execPath,
@@ -55,36 +55,36 @@ test("free local selection persists and does not require a key", async (t) => {
         {
             encoding: "utf8",
             env: { ...process.env, VONK_CONFIG_DIR: directory },
-            input: "4\n1\n0\n",
+            input: "4\\n1\\n0\\n",
         },
     );
     assert.equal(result.status, 0, result.stderr);
     assert.equal(
         JSON.parse(await readFile(join(directory, "config.json"))).provider,
-        "ollama",
+        "vonk",
     );
+    process.env.VONK_BASE_URL = "https://vonk.example";
+    process.env.VONK_API_KEY = "synthetic-key";
     let captured;
     assert.equal(
         await complete(
-            "ollama",
-            "qwen2.5-coder:1.5b",
+            "vonk",
+            "opencode",
             [{ role: "user", content: "hi" }],
-            null,
+            "synthetic-key",
             64,
             0.7,
             async (url, options) => {
                 captured = { url, options };
-                return new Response(
-                    JSON.stringify({
-                        choices: [{ message: { content: "local answer" } }],
-                    }),
-                );
+                return new Response(JSON.stringify({
+                    choices: [{ message: { content: "managed answer" } }],
+                }));
             },
         ),
-        "local answer",
+        "managed answer",
     );
-    assert.equal(captured.url, "http://127.0.0.1:11434/v1/chat/completions");
-    assert.ok(!captured.options.headers.Authorization.includes("undefined"));
+    assert.equal(captured.url, "https://vonk.example/v1/chat/completions");
+    assert.equal(JSON.parse(captured.options.body).model, "opencode");
 });
 test("skills add, enable, disable, remove and real chat context", async (t) => {
     const directory = await isolated(t),
