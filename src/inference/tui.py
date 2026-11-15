@@ -289,16 +289,12 @@ class Workspace:
         elif mode == "models":
             self.select(*value)
         elif mode == "connect":
-            if value == "vonk":
-                self.select(value, self.api.EXAMPLE_MODELS[value][0])
-            else:
-                self.task = self.app.create_background_task(self.login(value))
+            self.task = self.app.create_background_task(self.login(value))
         elif mode == "free":
             self.select(*value)
             self.append(
                 "Free models",
-                "Vonk managed inference uses the OpenCode-first FreeLLM route. "
-                "Configure VONK_BASE_URL and VONK_API_KEY. OpenRouter requires your own key.",
+                "OpenRouter free tier requires your own API key and is subject to provider quotas.",
             )
         elif mode == "skills":
             self.store.toggle_skill(value[0], not value[1])
@@ -354,7 +350,7 @@ class Workspace:
             self.show(
                 "connect",
                 [
-                    (p, p + (" · managed gateway" if p == "vonk" else " · your API key"))
+                    (p, p + " · your API key")
                     for p in self.api.PROVIDERS
                 ],
             )
@@ -362,7 +358,7 @@ class Workspace:
             self.show(
                 "free",
                 [
-                    (("vonk", "opencode"), "Vonk · OpenCode-first managed inference"),
+                    (("openrouter", "openrouter/free"), "OpenRouter · free tier / own key"),
                     (("openrouter", "openrouter/free"), "OpenRouter · free tier / own key"),
                 ],
             )

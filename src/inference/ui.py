@@ -34,7 +34,7 @@ def model_picker(api, config):
     entries = []
     for provider, models in api.EXAMPLE_MODELS.items():
         for model in models:
-            note = "your Vonk-managed gateway" if provider == "vonk" else "your API key"
+            note = "your API key"
             if provider == "openrouter" and model == "openrouter/free":
                 note = "free tier; account/quota required"
             entries.append((provider, model, f"{provider} / {model} [{note}]"))
@@ -49,12 +49,12 @@ def connect_provider(api, config, keys):
     providers = list(api.PROVIDERS)
     chosen = pick(
         "CONNECT A PROVIDER",
-        [p + (" - Vonk managed gateway" if p == "vonk" else " - enter your API key") for p in providers],
+        [p + " - enter your API key" for p in providers],
     )
     if chosen is None:
         return
     provider = providers[chosen]
-    if provider != "vonk":
+    if True:
         if not sys.stdin.isatty():
             print(
                 "  Run 'vonk login PROVIDER' in an interactive terminal, or set its key variable."
@@ -69,22 +69,9 @@ def connect_provider(api, config, keys):
 def free_models(api, config):
     selected = pick(
         "FREE MODEL OPTIONS",
-        [
-            "Vonk managed inference - OpenCode default with automatic fallback",
-            "OpenRouter free router - own free-tier API key and rate limits apply",
-        ],
+        ["OpenRouter free router - own free-tier API key and rate limits apply"],
     )
     if selected == 0:
-        api.save(config, {"provider": "vonk", "model": "opencode"})
-        panel(
-            "VONK MANAGED GATEWAY",
-            [
-                "Set VONK_BASE_URL to your Vonk API URL.",
-                "Set VONK_API_KEY to your Vonk API key.",
-                "OpenCode is the default; Vonk handles fallback.",
-            ],
-        )
-    elif selected == 1:
         api.save(config, {"provider": "openrouter", "model": "openrouter/free"})
         print("  Free router selected. Connect OpenRouter with your own API key.")
 
