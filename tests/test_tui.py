@@ -48,11 +48,11 @@ def test_fullscreen_sends_with_selected_managed_or_hosted_model(tui, monkeypatch
 
         async def byok(**kwargs):
             started.set()
-            return {"response": "Hello\${token}]52;c;secret\${token} world"}
+            return {"response": "Hello\x1b]52;c;secret\x1b world"}
 
         async def managed(**kwargs):
             started.set()
-            return "Hello\${token}]52;c;secret\${token} world"
+            return "Hello\x1b]52;c;secret\x1b world"
 
         monkeypatch.setattr(api, "complete_byok", AsyncMock(side_effect=byok))
         if provider == "vonk":
@@ -67,7 +67,7 @@ def test_fullscreen_sends_with_selected_managed_or_hosted_model(tui, monkeypatch
             async def driver():
                 await asyncio.wait_for(started.wait(), 2)
                 await ui.task
-                pipe.send_text("\${token}")
+                pipe.send_text("\x1b")
 
             task = asyncio.create_task(driver())
             assert await asyncio.wait_for(ui.app.run_async(), 4) == 0
@@ -80,7 +80,7 @@ def test_fullscreen_sends_with_selected_managed_or_hosted_model(tui, monkeypatch
                 assert api.complete_vonk.call_args.kwargs["model"] == "opencode"
             else:
                 assert api.complete_byok.call_args.kwargs["provider"] == provider
-            assert ui.messages[-1]["content"] == "Hello\${token}]52;c;secret\${token} world"
+            assert ui.messages[-1]["content"] == "Hello\x1b]52;c;secret\x1b world"
 
     asyncio.run(exercise())
 
@@ -119,9 +119,9 @@ def test_fullscreen_preserves_unconnected_prompt_and_cancels_request(tui, monkey
 
             async def driver():
                 await asyncio.wait_for(started.wait(), 2)
-                pipe.send_text("\${token}")
+                pipe.send_text("\x1b")
                 await ui.task
-                pipe.send_text("\${token}")
+                pipe.send_text("\x1b")
 
             task = asyncio.create_task(driver())
             assert await asyncio.wait_for(ui.app.run_async(), 4) == 0
