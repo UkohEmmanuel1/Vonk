@@ -8,6 +8,7 @@ import os
 import sqlite3
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 _LOCK = threading.Lock()
@@ -32,9 +33,22 @@ def _connect():
     return connection
 
 
+@contextmanager
+def _database():
+    connection = _connect()
+    try:
+        yield connection
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
 def is_available(model_id: str) -> bool:
     try:
-        with _LOCK, _connect() as db:
+        with _LOCK, _database() as db:
             row = db.execute(
                 "SELECT open_until FROM provider_health WHERE model_id = ?",
                 (model_id,),

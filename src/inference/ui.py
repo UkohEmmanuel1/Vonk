@@ -54,7 +54,7 @@ def connect_provider(api, config, keys):
     if chosen is None:
         return
     provider = providers[chosen]
-    if True:
+    if provider != "vonk":
         if not sys.stdin.isatty():
             print(
                 "  Run 'vonk login PROVIDER' in an interactive terminal, or set its key variable."

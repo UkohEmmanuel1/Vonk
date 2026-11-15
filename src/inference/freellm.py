@@ -108,17 +108,22 @@ async def list_models() -> list[dict]:
         raise FreeLLMError(502, "FreeLLM returned an invalid model catalogue") from None
 
 
-def _candidate_models(items: list[dict], requested: str) -> list[str]:
+def _primary_model(items: list[dict], requested: str) -> str:
     available = [item["id"] for item in items]
     opencode = [item["id"] for item in items if _is_opencode(item, item["id"])]
     if requested in {"", "auto", "opencode", "default"}:
         if not opencode:
             raise FreeLLMError(503, "No available OpenCode model was found in the FreeLLM catalogue")
-        primary = opencode[0]
-    else:
-        if requested not in available:
-            raise FreeLLMError(404, "Requested model is not present in the FreeLLM catalogue")
-        primary = requested
+        return opencode[0]
+    if requested not in available:
+        raise FreeLLMError(404, "Requested model is not present in the FreeLLM catalogue")
+    return requested
+
+
+def _candidate_models(items: list[dict], requested: str) -> list[str]:
+    available = [item["id"] for item in items]
+    opencode = [item["id"] for item in items if _is_opencode(item, item["id"])]
+    primary = _primary_model(items, requested)
     ordered = [primary]
     ordered.extend(model for model in opencode + available if model != primary)
     try:
@@ -182,6 +187,7 @@ async def complete(
     _validate(messages, max_tokens, temperature)
     base_url, api_key = _configuration()
     items = await list_models()
+    primary = _primary_model(items, model)
     candidates = _candidate_models(items, model)
     timeout = httpx.Timeout(90.0, connect=10.0, write=15.0, pool=10.0)
     last_status = 502
@@ -219,7 +225,7 @@ async def complete(
                 data["vonk"] = {
                     "requested_model": model,
                     "selected_model": candidate,
-                    "fallback_used": candidate != candidates[0],
+                    "fallback_used": candidate != primary,
                 }
                 provider_health.record_success(candidate)
                 return data

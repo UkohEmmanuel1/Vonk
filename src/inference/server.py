@@ -387,7 +387,6 @@ def create_app(
                         temperature=req.temperature,
                     ):
                         yield event
-                    yield "data: [DONE]\\n\\n"
                 except FreeLLMError as exc:
                     payload = json.dumps(
                         {"error": {"message": exc.detail, "type": "upstream_error"}}
