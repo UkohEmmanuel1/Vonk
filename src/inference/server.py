@@ -20,8 +20,12 @@ from starlette.background import BackgroundTask
 
 from src.agents.crawl_scheduler import CrawlScheduler
 from src.agents.web_crawler import CrawlTask, WebCrawler
+from src.inference.freellm import (
+    FreeLLMError,
+    complete as complete_freellm,
+    list_models as list_freellm_models,
+)
 from src.inference.providers import EXAMPLE_MODELS, PROVIDERS, ProviderError, complete_byok
-from src.inference.freellm import FreeLLMError, complete as complete_freellm, list_models as list_freellm_models
 from src.inference.security import WindowLimiter
 
 if TYPE_CHECKING:

@@ -10,7 +10,8 @@ def _mock_client(monkeypatch, handler):
     original = httpx.AsyncClient
     transport = httpx.MockTransport(handler)
     monkeypatch.setattr(
-        httpx, "AsyncClient",
+        httpx,
+        "AsyncClient",
         lambda **kwargs: original(transport=transport, **kwargs),
     )
 
@@ -21,11 +22,20 @@ def test_catalogue_prioritizes_opencode_and_filters_unavailable(monkeypatch):
 
     def handler(request):
         assert request.url.path == "/v1/models"
-        return httpx.Response(200, json={"data": [
-            {"id": "groq::llama", "provider": "groq"},
-            {"id": "opencode::free-model", "provider": "opencode"},
-            {"id": "opencode::disabled", "provider": "opencode", "available": False},
-        ]})
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    {"id": "groq::llama", "provider": "groq"},
+                    {"id": "opencode::free-model", "provider": "opencode"},
+                    {
+                        "id": "opencode::disabled",
+                        "provider": "opencode",
+                        "available": False,
+                    },
+                ]
+            },
+        )
 
     _mock_client(monkeypatch, handler)
     items = asyncio.run(list_models())
@@ -41,10 +51,15 @@ def test_fallback_uses_next_catalogue_model_after_rate_limit(monkeypatch):
 
     def handler(request):
         if request.url.path.endswith("/models"):
-            return httpx.Response(200, json={"data": [
-                {"id": "opencode::first", "provider": "opencode"},
-                {"id": "groq::backup", "provider": "groq"},
-            ]})
+            return httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {"id": "opencode::first", "provider": "opencode"},
+                        {"id": "groq::backup", "provider": "groq"},
+                    ]
+                },
+            )
         import json
         body = json.loads(request.content)
         attempted.append(body["model"])
@@ -55,9 +70,11 @@ def test_fallback_uses_next_catalogue_model_after_rate_limit(monkeypatch):
         })
 
     _mock_client(monkeypatch, handler)
-    result = asyncio.run(complete(
-        model="opencode", messages=[{"role": "user", "content": "hello"}]
-    ))
+    result = asyncio.run(
+        complete(
+            model="opencode", messages=[{"role": "user", "content": "hello"}]
+        )
+    )
     assert attempted == ["opencode::first", "groq::backup"]
     assert result["vonk"]["fallback_used"] is True
     assert result["choices"][0]["message"]["content"] == "ok"

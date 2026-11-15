@@ -33,7 +33,10 @@ def _configuration() -> tuple[str, str]:
         or parsed.password
         or parsed.query
         or parsed.fragment
-        or (parsed.scheme != "https" and parsed.hostname not in {"localhost", "127.0.0.1", "::1"})
+        or (
+            parsed.scheme != "https"
+            and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}
+        )
     ):
         raise FreeLLMError(503, "FreeLLM gateway is not configured with a valid HTTPS base URL")
     if not api_key or len(api_key) > 512 or not all(32 < ord(c) < 127 for c in api_key):
@@ -67,7 +70,11 @@ def _catalog_items(payload: dict) -> list[dict]:
         raise FreeLLMError(502, "FreeLLM returned an invalid model catalogue")
     result = []
     for item in items:
-        if not isinstance(item, dict) or item.get("available") is False or item.get("enabled") is False:
+        if (
+            not isinstance(item, dict)
+            or item.get("available") is False
+            or item.get("enabled") is False
+        ):
             continue
         model_id = _model_id(item)
         if model_id:
@@ -79,7 +86,9 @@ async def list_models() -> list[dict]:
     base_url, api_key = _configuration()
     try:
         timeout = httpx.Timeout(15.0, connect=5.0)
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False, trust_env=False) as client:
+        async with httpx.AsyncClient(
+            timeout=timeout, follow_redirects=False, trust_env=False
+        ) as client:
             response = await client.get(
                 f"{base_url}/models", headers={"Authorization": f"Bearer {api_key}"}
             )
@@ -101,8 +110,7 @@ async def list_models() -> list[dict]:
 def _candidate_models(items: list[dict], requested: str) -> list[str]:
     available = [item["id"] for item in items]
     opencode = [
-        item["id"] for item in items
-        if _is_opencode(item, item["id"])
+        item["id"] for item in items if _is_opencode(item, item["id"])
     ]
     if requested in {"", "auto", "opencode", "default"}:
         if not opencode:
@@ -183,11 +191,18 @@ async def complete(
 
             try:
                 data = response.json()
-                if not isinstance(data, dict) or not isinstance(data.get("choices"), list) or not data["choices"]:
+                if (
+                not isinstance(data, dict)
+                or not isinstance(data.get("choices"), list)
+                or not data["choices"]
+            ):
                     raise ValueError
                 data["model"] = candidate
-                data["vonk"] = {"requested_model": model, "selected_model": candidate,
-                                "fallback_used": candidate != candidates[0]}
+                data["vonk"] = {
+                    "requested_model": model,
+                    "selected_model": candidate,
+                    "fallback_used": candidate != candidates[0],
+                }
                 return data
             except (ValueError, TypeError):
                 raise FreeLLMError(502, "FreeLLM returned an invalid inference response") from None
